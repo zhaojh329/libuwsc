@@ -1,4 +1,4 @@
-# libuwsc([中文](https://github.com/zhaojh329/libuwsc/blob/master/README_ZH.md))
+# libuwsc
 
 ![](https://img.shields.io/badge/license-GPLV3-brightgreen.svg?style=plastic "License")
 
@@ -8,29 +8,30 @@
 [mbedtls]: https://github.com/ARMmbed/mbedtls
 [CyaSSl(wolfssl)]: https://github.com/wolfSSL/wolfssl
 
-A WebSocket client C library based on libubox
+基于[libubox]的WebSocket客户端C库
 
-`Keep Watching for More Actions on This Space`
+`请保持关注以获取最新的项目动态`
 
-# Dependencies
+# 依赖
 * [libubox]
-* [ustream-ssl] - If you need to support SSL
-* [mbedtls] - If you choose mbedtls as your SSL backend
-* [CyaSSl(wolfssl)] - If you choose wolfssl as your SSL backend
-* [openssl] - If you choose openssl as your SSL backend
+* [ustream-ssl] - 如果你需要支持SSL
+* [mbedtls] - 如果你选择mbedtls作为你的SSL后端
+* [CyaSSl(wolfssl)] - 如果你选择wolfssl作为你的SSL后端
+* [openssl] - 如果你选择openssl作为你的SSL后端
 
-# Configure
-See which configuration are supported
+# 配置
+查看支持哪些配置选项
+
 	~/libuwsc/$ mkdir build && cd build
 	~/libuwsc/build$ cmake .. -L
 	~/libuwsc/build$ cmake .. -LH
 
-# Build and install
+# 编译和安装
 
 	~/libuwsc/build$ make && sudo make install
-	
-# How to use on OpenWRT
-add new feed into "feeds.conf.default":
+
+# 如何在OpenWRT中使用
+Add new feed into "feeds.conf.default":
 
     src-git libuwsc https://github.com/zhaojh329/libuwsc-feed.git
 
@@ -48,6 +49,9 @@ Select package libuwsc in menuconfig and compile new image.
             < > libuwsc-openssl.................................... libuwsc (openssl)
             < > libuwsc-wolfssl.................................... libuwsc (wolfssl)
 
-# Contributing
-If you would like to help making [libuwsc](https://github.com/zhaojh329/libuwsc) better,
-see the [CONTRIBUTING.md](https://github.com/zhaojh329/libuwsc/blob/master/CONTRIBUTING.md) file.
+# 贡献代码
+如果你想帮助[libuwsc](https://github.com/zhaojh329/libuwsc)变得更好，请参考
+[CONTRIBUTING_ZH.md](https://github.com/zhaojh329/libuwsc/blob/master/CONTRIBUTING_ZH.md)。
+
+# 技术交流
+QQ群：153530783

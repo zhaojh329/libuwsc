@@ -1,0 +1,30 @@
+/*
+ * Copyright (C) 2017 Jianhui Zhao <jianhuizhao329@gmail.com>
+ * 
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+#ifndef _UHTTPD_CONFIG_H
+#define _UHTTPD_CONFIG_H
+
+#define UHTTPD_VERSION_MAJOR @UHTTPD_VERSION_MAJOR@
+#define UHTTPD_VERSION_MINOR @UHTTPD_VERSION_MINOR@
+#define UHTTPD_VERSION_PATCH @UHTTPD_VERSION_PATCH@
+#define UHTTPD_VERSION_STRING "@UHTTPD_VERSION_MAJOR@.@UHTTPD_VERSION_MINOR@.@UHTTPD_VERSION_PATCH@"
+
+#define UHTTPD_DEBUG @UHTTPD_DEBUG_CONFIG@
+
+#define UHTTPD_SSL_SUPPORT @UHTTPD_SSL_SUPPORT_CONFIG@
+
+#endif
