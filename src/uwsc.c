@@ -85,16 +85,163 @@ static void uwsc_free(struct uwsc_client *cl)
     free(cl);
 }
 
-static void client_ustream_read_cb(struct ustream *s, int bytes)
+static void uwsc_process_headers(struct uwsc_client *cl)
 {
-    int len;
-    char *str;
+    enum {
+        HTTP_HDR_CONNECTION,
+        HTTP_HDR_UPGRADE,
+        HTTP_HDR_SEC_WEBSOCKET_ACCEPT,
+        __HTTP_HDR_MAX,
+    };
+    static const struct blobmsg_policy hdr_policy[__HTTP_HDR_MAX] = {
+#define hdr(_name) { .name = _name, .type = BLOBMSG_TYPE_STRING }
+        [HTTP_HDR_CONNECTION] = hdr("connection"),
+        [HTTP_HDR_UPGRADE] = hdr("upgrade"),
+        [HTTP_HDR_SEC_WEBSOCKET_ACCEPT] = hdr("sec-websocket-accept")
+#undef hdr
+    };
+    struct blob_attr *tb[__HTTP_HDR_MAX];
+    struct blob_attr *cur;
 
-    str = ustream_get_read_buf(s, &len);
-    if (!str || !len)
+    blobmsg_parse(hdr_policy, __HTTP_HDR_MAX, tb, blob_data(cl->meta.head), blob_len(cl->meta.head));
+
+    cur = tb[HTTP_HDR_CONNECTION];
+    if (!cur || !strstr(blobmsg_data(cur), "upgrade")) {
+        printf("Invalid connection\n");
+    }
+
+    cur = tb[HTTP_HDR_UPGRADE];
+    if (!cur || !strstr(blobmsg_data(cur), "websocket")) {
+        printf("Invalid upgrade\n");
+    }
+
+    cur = tb[HTTP_HDR_SEC_WEBSOCKET_ACCEPT];
+    if (!cur) {
+        printf("Invalid sec-websocket-accept\n");
+    }
+}
+
+static void uwsc_headers_complete(struct uwsc_client *cl)
+{
+    cl->state = CLIENT_STATE_RECV_DATA;
+    uwsc_process_headers(cl);
+}
+
+static void uwsc_parse_http_line(struct uwsc_client *cl, char *data)
+{
+    char *name;
+    char *sep;
+
+    if (cl->state == CLIENT_STATE_REQUEST_DONE) {
+        char *code;
+
+        if (!strlen(data))
+            return;
+
+        /* HTTP/1.1 */
+        strsep(&data, " ");
+
+        code = strsep(&data, " ");
+        if (!code)
+            goto error;
+
+        cl->status_code = strtoul(code, &sep, 10);
+        if (sep && *sep)
+            goto error;
+
+        cl->state = CLIENT_STATE_RECV_HEADERS;
+        return;
+    }
+
+    if (!*data) {
+        uwsc_headers_complete(cl);
+        return;
+    }
+
+    sep = strchr(data, ':');
+    if (!sep)
         return;
 
-    printf("read:%s\n", str);
+    *(sep++) = 0;
+
+    for (name = data; *name; name++)
+        *name = tolower(*name);
+
+    name = data;
+    while (isspace(*sep))
+        sep++;
+
+    blobmsg_add_string(&cl->meta, name, sep);
+    return;
+
+error:
+    cl->status_code = 400;
+    cl->eof = true;
+    //uclient_notify_eof(uh);
+}
+
+static void client_ustream_read_cb(struct ustream *s, int bytes)
+{
+    struct uwsc_client *cl = container_of(s, struct uwsc_client, sfd.stream);
+    unsigned int seq = cl->seq;
+    char *data;
+    int len;
+
+    if (cl->state < CLIENT_STATE_REQUEST_DONE || cl->state == CLIENT_STATE_ERROR)
+        return;
+
+    data = ustream_get_read_buf(s, &len);
+    if (!data || !len)
+        return;
+
+    if (cl->state < CLIENT_STATE_RECV_DATA) {
+        char *sep, *next;
+        int cur_len;
+
+        do {
+            sep = strchr(data, '\n');
+            if (!sep)
+                break;
+
+            next = sep + 1;
+            if (sep > data && sep[-1] == '\r')
+                sep--;
+
+            /* Check for multi-line HTTP headers */
+            if (sep > data) {
+                if (!*next)
+                    return;
+
+                if (isspace(*next) && *next != '\r' && *next != '\n') {
+                    sep[0] = ' ';
+                    if (sep + 1 < next)
+                        sep[1] = ' ';
+                    continue;
+                }
+            }
+
+            *sep = 0;
+            cur_len = next - data;
+            uwsc_parse_http_line(cl, data);
+            if (seq != cl->seq)
+                return;
+
+            ustream_consume(cl->us, cur_len);
+            len -= cur_len;
+
+            if (cl->eof)
+                return;
+
+            data = ustream_get_read_buf(cl->us, &len);
+        } while (data && cl->state < CLIENT_STATE_RECV_DATA);
+    }
+
+    if (cl->eof)
+        return;
+
+    if (cl->state == CLIENT_STATE_RECV_DATA) {
+
+    }
 }
 
 static void client_ustream_write_cb(struct ustream *s, int bytes)
@@ -148,6 +295,8 @@ struct uwsc_client *uwsc_new(const char *url)
     cl->onclose = uwsc_onclose;
     cl->free = uwsc_free;
 
+    blob_buf_init(&cl->meta, 0);
+
     srand(time(NULL));
     for(i = 0; i< 16; i++) {
         key_nonce[i] = rand() & 0xff;
@@ -162,6 +311,8 @@ struct uwsc_client *uwsc_new(const char *url)
     ustream_printf(cl->us, "Sec-WebSocket-Key: %s\r\n", websocket_key);
     ustream_printf(cl->us, "Sec-WebSocket-Version: 13\r\n");
     ustream_printf(cl->us, "\r\n");
+
+    cl->state = CLIENT_STATE_REQUEST_DONE;
 
     free(host);
 

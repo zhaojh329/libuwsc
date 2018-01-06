@@ -24,10 +24,25 @@
 
 #include <libubox/uloop.h>
 #include <libubox/ustream.h>
- 
+ #include <libubox/blobmsg.h>
+
+enum client_state {
+	CLIENT_STATE_INIT,
+	CLIENT_STATE_HEADERS_SENT,
+	CLIENT_STATE_REQUEST_DONE,
+	CLIENT_STATE_RECV_HEADERS,
+	CLIENT_STATE_RECV_DATA,
+	CLIENT_STATE_ERROR
+};
+
 struct uwsc_client {
 	struct ustream *us;
     struct ustream_fd sfd;
+	enum client_state state;
+	struct blob_buf meta;
+	int status_code;
+	unsigned int seq;
+	bool eof;
 
 	void (*onopen)(struct uwsc_client *cl);
     void (*onmessage)(struct uwsc_client *cl);
