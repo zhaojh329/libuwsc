@@ -17,6 +17,33 @@
 
 #include <uwsc.h>
 
+static void uwsc_onopen(struct uwsc_client *cl)
+{
+
+}
+
+static void uwsc_onmessage(struct uwsc_client *cl, char *data, uint64_t len)
+{
+	static int sent;
+	char buf[1024] = "I'm libuwsc";
+
+	printf("recv:[%.*s]\n", (int)len, data);
+
+	if (!sent) {
+		sent = 1;
+		cl->send(cl, buf, strlen(buf) + 1, WEBSOCKET_OP_TEXT);
+	}
+}
+
+static void uwsc_onerror(struct uwsc_client *cl)
+{
+
+}
+
+static void uwsc_onclose(struct uwsc_client *cl)
+{
+
+}
 
 int main(int argc, char **argv)
 {
@@ -26,6 +53,11 @@ int main(int argc, char **argv)
 
     cl = uwsc_new("ws://192.168.3.33:81/lua");
    
+   	cl->onopen = uwsc_onopen;
+    cl->onmessage = uwsc_onmessage;
+    cl->onerror = uwsc_onerror;
+    cl->onclose = uwsc_onclose;
+
     uloop_run();
     uloop_done();
     

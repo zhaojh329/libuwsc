@@ -23,26 +23,6 @@
 #include "log.h"
 #include <libubox/usock.h>
 
-static void uwsc_onopen(struct uwsc_client *cl)
-{
-
-}
-
-static void uwsc_onmessage(struct uwsc_client *cl)
-{
-
-}
-
-static void uwsc_onerror(struct uwsc_client *cl)
-{
-
-}
-
-static void uwsc_onclose(struct uwsc_client *cl)
-{
-
-}
-
 static int uwsc_parse_url(const char *url, char **host, int *port, const char **path)
 {
     char *p;
@@ -180,6 +160,36 @@ error:
     //uclient_notify_eof(uh);
 }
 
+static int parse_frame(struct uwsc_frame *frame, char *data, int len)
+{
+    frame->data = data;
+    frame->fin = (data[0] & 0x80) ? 1 : 0;
+    frame->opcode = data[0] & 0x0F;
+
+    if (data[1] & 0x80) {
+        uwsc_log_err("Masked error");
+        return -1;
+    }
+
+    frame->payload_offset = 2;
+    frame->payload_len = data[1] & 0x7F;
+
+    switch (frame->payload_len) {
+    case 126:
+        frame->payload_len = ntohs(*(uint16_t *)&data[2]);
+        frame->payload_offset += 2;
+        break;
+    case 127:
+        frame->payload_len = (((uint64_t)ntohl(*(uint32_t *)&data[2])) << 32) + ntohl(*(uint32_t *)&data[6]);
+        frame->payload_offset += 8;
+        break;
+    default:
+        break;
+    }
+
+    return 0;
+}
+
 static void client_ustream_read_cb(struct ustream *s, int bytes)
 {
     struct uwsc_client *cl = container_of(s, struct uwsc_client, sfd.stream);
@@ -239,8 +249,9 @@ static void client_ustream_read_cb(struct ustream *s, int bytes)
     if (cl->eof)
         return;
 
-    if (cl->state == CLIENT_STATE_RECV_DATA) {
-
+    if (cl->state == CLIENT_STATE_RECV_DATA && data) {
+        if (!parse_frame(&cl->frame, data, len))
+            cl->onmessage(cl, cl->frame.data + cl->frame.payload_offset, cl->frame.payload_len);
     }
 }
 
@@ -250,6 +261,40 @@ static void client_ustream_write_cb(struct ustream *s, int bytes)
 
 static void client_notify_state(struct ustream *s)
 {
+}
+
+static int uwsc_send(struct uwsc_client *cl, char *data, int len, enum websocket_op op)
+{
+    //char buf[] = {0x81, 0x85, 0x37, 0xfa, 0x21, 0x3d, 0x7f, 0x9f, 0x4d, 0x51, 0x58};
+    char buf[1024] = "";
+    char *p = buf;
+    struct timeval tv;
+    unsigned char mask[4];
+    unsigned int mask_int;
+    int i;
+
+    gettimeofday(&tv, NULL);
+    srand(tv.tv_usec * tv.tv_sec);
+    mask_int = rand();
+    memcpy(mask, &mask_int, 4);
+
+    *p++ = 0x81;
+
+    if (len < 126) {
+        *p++ = 0x80 | len;
+        memcpy(p, mask, 4);
+
+        memcpy(p + 4, data, len);
+        p += 4;
+
+        for (i = 0; i < len; i++) {
+            p[i] ^= mask[i % 4];
+        }
+    }
+
+    ustream_write(cl->us, buf, 1 + 1 + 4 + len, false);
+
+    return 0;
 }
 
 struct uwsc_client *uwsc_new(const char *url)
@@ -289,11 +334,8 @@ struct uwsc_client *uwsc_new(const char *url)
     cl->us->string_data = true;
     ustream_fd_init(&cl->sfd, sock);
 
-    cl->onopen = uwsc_onopen;
-    cl->onmessage = uwsc_onmessage;
-    cl->onerror = uwsc_onerror;
-    cl->onclose = uwsc_onclose;
     cl->free = uwsc_free;
+    cl->send = uwsc_send;
 
     blob_buf_init(&cl->meta, 0);
 

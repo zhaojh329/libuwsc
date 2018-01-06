@@ -35,6 +35,23 @@ enum client_state {
 	CLIENT_STATE_ERROR
 };
 
+enum websocket_op {
+	WEBSOCKET_OP_CONTINUE = 0x00,
+	WEBSOCKET_OP_TEXT = 0x01,
+	WEBSOCKET_OP_BINARY = 0x02,
+	WEBSOCKET_OP_CLOSE = 0x08,
+	WEBSOCKET_OP_PING = 0x09,
+	WEBSOCKET_OP_PONG = 0x0A
+};
+
+struct uwsc_frame {
+	unsigned int fin;
+	unsigned int opcode;
+	unsigned long long payload_len;
+	unsigned long long payload_offset;
+	char *data;
+};
+
 struct uwsc_client {
 	struct ustream *us;
     struct ustream_fd sfd;
@@ -43,11 +60,13 @@ struct uwsc_client {
 	int status_code;
 	unsigned int seq;
 	bool eof;
+	struct uwsc_frame frame;
 
 	void (*onopen)(struct uwsc_client *cl);
-    void (*onmessage)(struct uwsc_client *cl);
+    void (*onmessage)(struct uwsc_client *cl, char *data, uint64_t len);
     void (*onerror)(struct uwsc_client *cl);
     void (*onclose)(struct uwsc_client *cl);
+    int (*send)(struct uwsc_client *cl, char *data, int len, enum websocket_op op);
     void (*free)(struct uwsc_client *cl);
 };
 
