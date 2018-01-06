@@ -23,5 +23,19 @@
 #define _UWSC_H
 
 #include <libubox/uloop.h>
+#include <libubox/ustream.h>
+ 
+struct uwsc_client {
+	struct ustream *us;
+    struct ustream_fd sfd;
+
+	void (*onopen)(struct uwsc_client *cl);
+    void (*onmessage)(struct uwsc_client *cl);
+    void (*onerror)(struct uwsc_client *cl);
+    void (*onclose)(struct uwsc_client *cl);
+    void (*free)(struct uwsc_client *cl);
+};
+
+struct uwsc_client *uwsc_new(const char *url);
 
 #endif

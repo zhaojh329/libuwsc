@@ -20,11 +20,16 @@
 
 int main(int argc, char **argv)
 {
+	struct uwsc_client *cl = NULL;
+
     uloop_init();
 
+    cl = uwsc_new("ws://192.168.3.33:81/lua");
    
     uloop_run();
     uloop_done();
     
+	cl->free(cl);
+
     return 0;
 }
