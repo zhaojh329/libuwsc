@@ -18,9 +18,9 @@
 #ifndef _UWSC_H
 #define _UWSC_H
 
-#include <libubox/uloop.h>
-#include <libubox/ustream.h>
- #include <libubox/blobmsg.h>
+#include "common.h"
+
+#define UWSC_PING_INTERVAL  1
 
 enum client_state {
 	CLIENT_STATE_INIT,
@@ -50,17 +50,15 @@ struct uwsc_client {
 	struct ustream *us;
     struct ustream_fd sfd;
 	enum client_state state;
-	struct blob_buf meta;
-	int status_code;
-	unsigned int seq;
-	bool eof;
-	struct uwsc_frame frame;
+    struct uwsc_frame frame;
+    struct uloop_timeout timeout;
 
 	void (*onopen)(struct uwsc_client *cl);
     void (*onmessage)(struct uwsc_client *cl, char *data, uint64_t len, enum websocket_op op);
     void (*onerror)(struct uwsc_client *cl);
     void (*onclose)(struct uwsc_client *cl);
     int (*send)(struct uwsc_client *cl, char *data, int len, enum websocket_op op);
+    void (*ping)(struct uwsc_client *cl);
     void (*free)(struct uwsc_client *cl);
 };
 

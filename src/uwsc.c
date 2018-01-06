@@ -147,6 +147,17 @@ static int parse_header(struct uwsc_client *cl, char *data)
     return 0;
 }
 
+static void uwsc_ping_cb(struct uloop_timeout *timeout)
+{
+    struct uwsc_client *cl = container_of(timeout, struct uwsc_client, timeout);
+
+    if (cl->state > CLIENT_STATE_MESSAGE)
+        return;
+
+    cl->ping(cl);
+    uloop_timeout_set(&cl->timeout, UWSC_PING_INTERVAL * 1000);
+}
+
 static void client_ustream_read_cb(struct ustream *s, int bytes)
 {
     struct uwsc_client *cl = container_of(s, struct uwsc_client, sfd.stream);
@@ -195,6 +206,12 @@ static void client_ustream_read_cb(struct ustream *s, int bytes)
             return;
 
         ustream_consume(cl->us, p + 4 - data);
+
+        if (cl->onopen)
+            cl->onopen(cl);
+
+        cl->timeout.cb = uwsc_ping_cb;
+        uloop_timeout_set(&cl->timeout, UWSC_PING_INTERVAL * 1000);
         
         cl->state = CLIENT_STATE_MESSAGE;
     } else if (cl->state == CLIENT_STATE_MESSAGE) {
@@ -212,23 +229,25 @@ static void client_notify_state(struct ustream *s)
 
 static int uwsc_send(struct uwsc_client *cl, char *data, int len, enum websocket_op op)
 {
-    //char buf[] = {0x81, 0x85, 0x37, 0xfa, 0x21, 0x3d, 0x7f, 0x9f, 0x4d, 0x51, 0x58};
     char buf[1024] = "";
     char *p = buf;
     struct timeval tv;
     unsigned char mask[4];
     unsigned int mask_int;
     int i;
+    int frame_size = 0;
 
     gettimeofday(&tv, NULL);
     srand(tv.tv_usec * tv.tv_sec);
     mask_int = rand();
     memcpy(mask, &mask_int, 4);
 
-    *p++ = 0x81;
+    *p++ = 0x80 | op;
 
     if (len < 126) {
+        frame_size = 6 + len;
         *p++ = 0x80 | len;
+    
         memcpy(p, mask, 4);
 
         memcpy(p + 4, data, len);
@@ -239,9 +258,14 @@ static int uwsc_send(struct uwsc_client *cl, char *data, int len, enum websocket
         }
     }
 
-    ustream_write(cl->us, buf, 1 + 1 + 4 + len, false);
+    ustream_write(cl->us, buf, frame_size, false);
 
     return 0;
+}
+
+static inline void uwsc_ping(struct uwsc_client *cl)
+{
+    cl->send(cl, NULL, 0, WEBSOCKET_OP_PING);
 }
 
 struct uwsc_client *uwsc_new(const char *url)
@@ -282,8 +306,7 @@ struct uwsc_client *uwsc_new(const char *url)
 
     cl->free = uwsc_free;
     cl->send = uwsc_send;
-
-    blob_buf_init(&cl->meta, 0);
+    cl->ping = uwsc_ping;
 
     get_nonce(nonce, sizeof(nonce));
 

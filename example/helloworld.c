@@ -19,7 +19,7 @@
 
 static void uwsc_onopen(struct uwsc_client *cl)
 {
-
+    uwsc_log_debug("onopen");
 }
 
 static void uwsc_onmessage(struct uwsc_client *cl, char *data, uint64_t len, enum websocket_op op)
