@@ -12,7 +12,7 @@ find_package(Libubox REQUIRED)
 include_directories(${CMAKE_CURRENT_BINARY_DIR} ${LIBUBOX_INCLUDE_DIR})
 
 set(EXTRA_LIBS ${LIBUBOX_LIBRARY} dl)
-set(SOURCE_FILES uwsc.c log.c)
+set(SOURCE_FILES uwsc.c log.c utils.c)
 
 set(UWSC_DEBUG_CONFIG 0)
 option(UWSC_DEBUG "Turn on debug" OFF)

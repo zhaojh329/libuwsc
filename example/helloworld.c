@@ -22,7 +22,7 @@ static void uwsc_onopen(struct uwsc_client *cl)
 
 }
 
-static void uwsc_onmessage(struct uwsc_client *cl, char *data, uint64_t len)
+static void uwsc_onmessage(struct uwsc_client *cl, char *data, uint64_t len, enum websocket_op op)
 {
 	static int sent;
 	char buf[1024] = "I'm libuwsc";
@@ -51,7 +51,7 @@ int main(int argc, char **argv)
 
     uloop_init();
 
-    cl = uwsc_new("ws://192.168.3.33:81/lua");
+    cl = uwsc_new("ws://192.168.0.100:81/lua");
    
    	cl->onopen = uwsc_onopen;
     cl->onmessage = uwsc_onmessage;

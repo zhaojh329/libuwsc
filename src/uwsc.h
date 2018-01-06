@@ -24,11 +24,10 @@
 
 enum client_state {
 	CLIENT_STATE_INIT,
-	CLIENT_STATE_HEADERS_SENT,
-	CLIENT_STATE_REQUEST_DONE,
-	CLIENT_STATE_RECV_HEADERS,
-	CLIENT_STATE_RECV_DATA,
-	CLIENT_STATE_ERROR
+	CLIENT_STATE_HANDSHAKE,
+	CLIENT_STATE_MESSAGE,
+	CLIENT_STATE_ERROR,
+	CLIENT_STATE_CLOSE
 };
 
 enum websocket_op {
@@ -44,8 +43,7 @@ struct uwsc_frame {
 	unsigned int fin;
 	unsigned int opcode;
 	unsigned long long payload_len;
-	unsigned long long payload_offset;
-	char *data;
+	char *payload;
 };
 
 struct uwsc_client {
@@ -59,7 +57,7 @@ struct uwsc_client {
 	struct uwsc_frame frame;
 
 	void (*onopen)(struct uwsc_client *cl);
-    void (*onmessage)(struct uwsc_client *cl, char *data, uint64_t len);
+    void (*onmessage)(struct uwsc_client *cl, char *data, uint64_t len, enum websocket_op op);
     void (*onerror)(struct uwsc_client *cl);
     void (*onclose)(struct uwsc_client *cl);
     int (*send)(struct uwsc_client *cl, char *data, int len, enum websocket_op op);
