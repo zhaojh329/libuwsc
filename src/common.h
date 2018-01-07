@@ -24,15 +24,12 @@
 #include <stdarg.h>
 #include <fcntl.h>
 #include <errno.h>
-#include <ctype.h>
 #include <assert.h>
+#include <limits.h>
 #include <stdbool.h>
 #include <unistd.h>
 #include <inttypes.h>
-#include <sys/stat.h>
-#include <netinet/in.h>
 #include <arpa/inet.h>
-#include <linux/limits.h>
 
 #include <libubox/uloop.h>
 #include <libubox/utils.h>

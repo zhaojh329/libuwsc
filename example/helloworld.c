@@ -17,38 +17,50 @@
 
 #include <uwsc.h>
 
+struct uwsc_client *cl;
+struct uloop_fd fd;
+
+void fd_handler(struct uloop_fd *u, unsigned int events)
+{
+    char buf[128] = "";
+    int n;
+
+    n = read(u->fd, buf, sizeof(buf));
+    if (n > 1) {
+        buf[n - 1] = 0;
+        printf("You input:[%s]\n", buf);
+        cl->send(cl, buf, strlen(buf) + 1, WEBSOCKET_OP_TEXT);
+    }
+}
+
 static void uwsc_onopen(struct uwsc_client *cl)
 {
     uwsc_log_debug("onopen");
+
+    fd.fd = STDIN_FILENO;
+    fd.cb = fd_handler;
+    uloop_fd_add(&fd, ULOOP_READ);
 }
 
 static void uwsc_onmessage(struct uwsc_client *cl, char *data, uint64_t len, enum websocket_op op)
 {
-	static int sent;
-	char buf[1024] = "I'm libuwsc";
-
 	printf("recv:[%.*s]\n", (int)len, data);
-
-	if (!sent) {
-		sent = 1;
-		cl->send(cl, buf, strlen(buf) + 1, WEBSOCKET_OP_TEXT);
-	}
 }
 
 static void uwsc_onerror(struct uwsc_client *cl)
 {
-
+    printf("onerror:%d\n", cl->error);
 }
 
 static void uwsc_onclose(struct uwsc_client *cl)
 {
+    printf("onclose\n");
 
+    uloop_done();
 }
 
 int main(int argc, char **argv)
 {
-	struct uwsc_client *cl = NULL;
-
     uloop_init();
 
     cl = uwsc_new("ws://192.168.0.100:81/lua");
@@ -57,7 +69,7 @@ int main(int argc, char **argv)
     cl->onmessage = uwsc_onmessage;
     cl->onerror = uwsc_onerror;
     cl->onclose = uwsc_onclose;
-
+    
     uloop_run();
     uloop_done();
     

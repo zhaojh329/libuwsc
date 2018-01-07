@@ -20,49 +20,16 @@
 #include "utils.h"
 #include <libubox/usock.h>
 
-static int uwsc_parse_url(const char *url, char **host, int *port, const char **path)
-{
-    char *p;
-    const char *host_pos;
-    int host_len = 0;
-
-    if (strncmp(url, "ws://", 5))
-        return -1;
-    
-    url += 5;
-    host_pos = url;
-
-    p = strchr(url, ':');
-    if (p) {
-        host_len = p - url;
-        url = p + 1;
-        *port = atoi(url);
-    }
-
-    p = strchr(url, '/');
-    if (p) {
-        *path = p;
-        if (host_len == 0)
-            host_len = p - host_pos;
-    }
-
-    if (host_len == 0)
-        host_len = strlen(host_pos);
-
-    *host = strndup(host_pos, host_len);
-
-    return 0;
-}
-
 static void uwsc_free(struct uwsc_client *cl)
 {
+    uloop_timeout_cancel(&cl->timeout);
     ustream_free(&cl->sfd.stream);
     shutdown(cl->sfd.fd.fd, SHUT_RDWR);
     close(cl->sfd.fd.fd);
     free(cl);
 }
 
-static int parse_frame(struct uwsc_client *cl, char *data)
+static void parse_frame(struct uwsc_client *cl, char *data)
 {
     struct uwsc_frame *frame = &cl->frame;
     
@@ -71,7 +38,8 @@ static int parse_frame(struct uwsc_client *cl, char *data)
 
     if (data[1] & 0x80) {
         uwsc_log_err("Masked error");
-        return -1;
+        cl->send(cl, NULL, 0, WEBSOCKET_OP_CLOSE);
+        return;
     }
 
     frame->payload_len = data[1] & 0x7F;
@@ -90,17 +58,22 @@ static int parse_frame(struct uwsc_client *cl, char *data)
         break;
     }
 
-    uwsc_log_debug("FIN:%d", frame->fin);
-    uwsc_log_debug("OP Code:%d", frame->opcode);
-    uwsc_log_debug("Payload len:%d", (int)frame->payload_len);
-    uwsc_log_debug("Payload:[%.*s]", (int)frame->payload_len, frame->payload);
+    if (frame->opcode == WEBSOCKET_OP_PONG) {
+        uwsc_log_debug("Recv PONG");
+        return;
+    }
+
+    if (frame->opcode == WEBSOCKET_OP_CLOSE) {
+        uwsc_log_debug("Recv Close");
+        if (cl->onclose)
+            cl->onclose(cl);
+        return;
+    }
 
     if (frame->fin) {
         if (cl->onmessage)
             cl->onmessage(cl, frame->payload, frame->payload_len, frame->opcode);
     }
-
-    return 0;
 }
 
 static int parse_header(struct uwsc_client *cl, char *data)
@@ -139,7 +112,6 @@ static int parse_header(struct uwsc_client *cl, char *data)
     }
 
     if (!has_upgrade || !has_connection || !has_sec_webSocket_accept) {
-        cl->state = CLIENT_STATE_ERROR;
         uwsc_log_err("Invalid header");
         return -1;
     }
@@ -164,9 +136,6 @@ static void client_ustream_read_cb(struct ustream *s, int bytes)
     char *data;
     int len;
 
-    if (cl->state > CLIENT_STATE_MESSAGE)
-        return;
-
     data = ustream_get_read_buf(s, &len);
     if (!data || !len)
         return;
@@ -186,24 +155,21 @@ static void client_ustream_read_cb(struct ustream *s, int bytes)
 
         if (!version || strcmp(version, "HTTP/1.1")) {
             uwsc_log_err("Invalid version");
-            cl->state = CLIENT_STATE_ERROR;
-            return;
+            goto err;
         }
 
         if (!status_code || atoi(status_code) != 101) {
             uwsc_log_err("Invalid status code");
-            cl->state = CLIENT_STATE_ERROR;
-            return;
+            goto err;;
         }
 
         if (!summary) {
             uwsc_log_err("Invalid summary");
-            cl->state = CLIENT_STATE_ERROR;
-            return;
+            goto err;;
         }
 
         if (parse_header(cl, data))
-            return;
+            goto err;;
 
         ustream_consume(cl->us, p + 4 - data);
 
@@ -216,46 +182,78 @@ static void client_ustream_read_cb(struct ustream *s, int bytes)
         cl->state = CLIENT_STATE_MESSAGE;
     } else if (cl->state == CLIENT_STATE_MESSAGE) {
         parse_frame(cl, data);
+        ustream_consume(cl->us, len);
     }
-}
-
-static void client_ustream_write_cb(struct ustream *s, int bytes)
-{
+err:
+    cl->us->eof = true;
+    cl->error = UWSC_ERROR_INVALID_HEADER;
+    ustream_state_change(cl->us);
 }
 
 static void client_notify_state(struct ustream *s)
 {
+    struct uwsc_client *cl = container_of(s, struct uwsc_client, sfd.stream);
+
+    if (!cl->error && s->write_error)
+        cl->error = UWSC_ERROR_WRITE;
+
+    if (!cl->error) {
+        if (!s->eof || s->w.data_bytes)
+            return;
+    }
+
+    if (cl->error && cl->onerror)
+        cl->onerror(cl);
+
+    if (cl->onclose)
+        cl->onclose(cl);
+
+    cl->free(cl);
 }
 
 static int uwsc_send(struct uwsc_client *cl, char *data, int len, enum websocket_op op)
 {
     char buf[1024] = "";
     char *p = buf;
-    struct timeval tv;
-    unsigned char mask[4];
-    unsigned int mask_int;
+    uint8_t mask_key[4];
     int i;
     int frame_size = 0;
 
-    gettimeofday(&tv, NULL);
-    srand(tv.tv_usec * tv.tv_sec);
-    mask_int = rand();
-    memcpy(mask, &mask_int, 4);
+    get_nonce(mask_key, 4);
 
-    *p++ = 0x80 | op;
+    *p++ = 0x80 | op;   /* FIN and opcode */
+
+    if (len > INT_MAX - 8) {
+        uwsc_log_err("Payload too big");
+        return -1;
+    }
 
     if (len < 126) {
-        frame_size = 6 + len;
         *p++ = 0x80 | len;
-    
-        memcpy(p, mask, 4);
+        frame_size = 6 + len;
+    } else if (len < 0x10000) {
+        *p++ = 0x80 | 126;
+        *p++ = (len >> 8) & 0xFF;
+        *p++ = len & 0xFF;
+        frame_size = 8 + len;
+    } else {
+        *p++ = 0x80 | 127;
+        *p++ = 0;
+        *p++ = 0;
+        *p++ = 0;
+        *p++ = 0;
+        *p++ = (len >> 24) & 0xFF;
+        *p++ = (len >> 16) & 0xFF;
+        *p++ = (len >> 8) & 0xFF;
+        *p++ = len & 0xFF;
+        frame_size = 14 + len;
+    }
 
-        memcpy(p + 4, data, len);
-        p += 4;
-
-        for (i = 0; i < len; i++) {
-            p[i] ^= mask[i % 4];
-        }
+    memcpy(p, mask_key, 4);
+    p += 4;
+    memcpy(p, data, len);
+    for (i = 0; i < len; i++) {
+        p[i] ^= mask_key[i % 4];
     }
 
     ustream_write(cl->us, buf, frame_size, false);
@@ -268,6 +266,32 @@ static inline void uwsc_ping(struct uwsc_client *cl)
     cl->send(cl, NULL, 0, WEBSOCKET_OP_PING);
 }
 
+static void uwsc_handshake(struct uwsc_client *cl, const char *host, int port, const char *path)
+{
+    uint8_t nonce[16];
+    char websocket_key[256] = "";
+
+    get_nonce(nonce, sizeof(nonce));
+    
+    b64_encode(nonce, sizeof(nonce), websocket_key, sizeof(websocket_key));
+
+    ustream_printf(cl->us, "GET %s HTTP/1.1\r\n", path);
+    ustream_printf(cl->us, "Upgrade: websocket\r\n");
+    ustream_printf(cl->us, "Connection: Upgrade\r\n");
+    ustream_printf(cl->us, "Sec-WebSocket-Key: %s\r\n", websocket_key);
+    ustream_printf(cl->us, "Sec-WebSocket-Version: 13\r\n");
+
+    ustream_printf(cl->us, "Host: %s", host);
+    if (port == 80)
+        ustream_printf(cl->us, "\r\n");
+    else
+        ustream_printf(cl->us, ":%d\r\n", port);
+    
+    ustream_printf(cl->us, "\r\n");
+
+    cl->state = CLIENT_STATE_HANDSHAKE;
+}
+
 struct uwsc_client *uwsc_new(const char *url)
 {
     struct uwsc_client *cl = NULL;
@@ -275,10 +299,8 @@ struct uwsc_client *uwsc_new(const char *url)
     const char *path = "/";
     int port = 80;
     int sock = -1;
-    uint8_t nonce[16];
-    char websocket_key[256] = "";
 
-    if (uwsc_parse_url(url, &host, &port, &path) < 0) {
+    if (parse_url(url, &host, &port, &path) < 0) {
         uwsc_log_err("Invalid url");
         return NULL;
     }
@@ -296,9 +318,7 @@ struct uwsc_client *uwsc_new(const char *url)
     }
 
     cl->us = &cl->sfd.stream;
-
     cl->us->notify_read = client_ustream_read_cb;
-    cl->us->notify_write = client_ustream_write_cb;
     cl->us->notify_state = client_notify_state;
 
     cl->us->string_data = true;
@@ -308,20 +328,7 @@ struct uwsc_client *uwsc_new(const char *url)
     cl->send = uwsc_send;
     cl->ping = uwsc_ping;
 
-    get_nonce(nonce, sizeof(nonce));
-
-    b64_encode(nonce, sizeof(nonce), websocket_key, sizeof(websocket_key));
-
-    ustream_printf(cl->us, "GET %s HTTP/1.1\r\n", path);
-    ustream_printf(cl->us, "Upgrade: websocket\r\n");
-    ustream_printf(cl->us, "Connection: Upgrade\r\n");
-    ustream_printf(cl->us, "Host: %s:%d\r\n", host, port);
-    ustream_printf(cl->us, "Sec-WebSocket-Key: %s\r\n", websocket_key);
-    ustream_printf(cl->us, "Sec-WebSocket-Version: 13\r\n");
-    ustream_printf(cl->us, "\r\n");
-
-    cl->state = CLIENT_STATE_HANDSHAKE;
-
+    uwsc_handshake(cl, host, port, path);
     free(host);
 
     return cl;

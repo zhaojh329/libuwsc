@@ -20,14 +20,17 @@
 
 #include "common.h"
 
-#define UWSC_PING_INTERVAL  1
+#define UWSC_PING_INTERVAL  30
+
+enum uwsc_error_code {
+    UWSC_ERROR_WRITE,
+    UWSC_ERROR_INVALID_HEADER
+};
 
 enum client_state {
 	CLIENT_STATE_INIT,
 	CLIENT_STATE_HANDSHAKE,
-	CLIENT_STATE_MESSAGE,
-	CLIENT_STATE_ERROR,
-	CLIENT_STATE_CLOSE
+	CLIENT_STATE_MESSAGE
 };
 
 enum websocket_op {
@@ -52,6 +55,7 @@ struct uwsc_client {
 	enum client_state state;
     struct uwsc_frame frame;
     struct uloop_timeout timeout;
+    enum uwsc_error_code error;
 
 	void (*onopen)(struct uwsc_client *cl);
     void (*onmessage)(struct uwsc_client *cl, char *data, uint64_t len, enum websocket_op op);

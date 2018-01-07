@@ -21,6 +21,7 @@
 #include "common.h"
 
 int get_nonce(uint8_t *dest, int len);
+int parse_url(const char *url, char **host, int *port, const char **path);
 
 #endif
 
