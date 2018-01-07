@@ -8,7 +8,7 @@
 [mbedtls]: https://github.com/ARMmbed/mbedtls
 [CyaSSl(wolfssl)]: https://github.com/wolfSSL/wolfssl
 
-A WebSocket client C library based on libubox
+A WebSocket client C library based on libubox for Embedded Linux.
 
 `Keep Watching for More Actions on This Space`
 
