@@ -387,10 +387,6 @@ struct uwsc_client *uwsc_new(const char *url)
             uwsc_log_err("ustream_ssl_context_new");
             return NULL;
         }
-#else
-        uwsc_log_err("SSL support not available");
-        return NULL;
-#endif
 
         cl->us = &cl->ussl.stream;
         cl->us->string_data = true;
@@ -400,6 +396,10 @@ struct uwsc_client *uwsc_new(const char *url)
         cl->ussl.server_name = host;
         cl->ssl_ops->init(&cl->ussl, &cl->sfd.stream, cl->ssl_ctx, false);
         cl->ssl_ops->set_peer_cn(&cl->ussl, host);
+#else
+        uwsc_log_err("SSL support not available");
+        return NULL;
+#endif
     } else {
         cl->us = &cl->sfd.stream;
         cl->us->string_data = true;
