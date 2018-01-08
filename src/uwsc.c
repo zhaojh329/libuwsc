@@ -29,12 +29,39 @@ static void uwsc_free(struct uwsc_client *cl)
     free(cl);
 }
 
+static void dispach_message(struct uwsc_client *cl)
+{
+    struct uwsc_frame *frame = &cl->frame;
+
+    switch (frame->opcode) {
+    case WEBSOCKET_OP_TEXT:
+        if (cl->onmessage)
+            cl->onmessage(cl, frame->payload, frame->payload_len, frame->opcode);
+        break;
+    case WEBSOCKET_OP_PING:
+        cl->send(cl, frame->payload, frame->payload_len, WEBSOCKET_OP_PONG);
+        break;
+    case WEBSOCKET_OP_CLOSE:
+        if (cl->onclose)
+            cl->onclose(cl);
+    default:
+        break;
+    }
+}
+
 static void parse_frame(struct uwsc_client *cl, char *data)
 {
     struct uwsc_frame *frame = &cl->frame;
     
     frame->fin = (data[0] & 0x80) ? 1 : 0;
     frame->opcode = data[0] & 0x0F;
+
+    if (!frame->fin) {
+        uwsc_log_err("Not support fregment");
+        cl->error = UWSC_ERROR_NOT_SUPPORT_FREGMENT;
+        cl->send(cl, NULL, 0, WEBSOCKET_OP_CLOSE);
+        goto err;
+    }
 
     if (data[1] & 0x80) {
         uwsc_log_err("Masked error");
@@ -58,22 +85,12 @@ static void parse_frame(struct uwsc_client *cl, char *data)
         break;
     }
 
-    if (frame->opcode == WEBSOCKET_OP_PONG) {
-        uwsc_log_debug("Recv PONG");
-        return;
-    }
+    dispach_message(cl);
+    return;
 
-    if (frame->opcode == WEBSOCKET_OP_CLOSE) {
-        uwsc_log_debug("Recv Close");
-        if (cl->onclose)
-            cl->onclose(cl);
-        return;
-    }
-
-    if (frame->fin) {
-        if (cl->onmessage)
-            cl->onmessage(cl, frame->payload, frame->payload_len, frame->opcode);
-    }
+err:
+    cl->us->eof = true;
+    ustream_state_change(cl->us);
 }
 
 static int parse_header(struct uwsc_client *cl, char *data)
@@ -184,6 +201,8 @@ static void client_ustream_read_cb(struct ustream *s, int bytes)
         parse_frame(cl, data);
         ustream_consume(cl->us, len);
     }
+    return;
+
 err:
     cl->us->eof = true;
     cl->error = UWSC_ERROR_INVALID_HEADER;

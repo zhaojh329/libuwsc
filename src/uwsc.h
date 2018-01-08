@@ -24,7 +24,8 @@
 
 enum uwsc_error_code {
     UWSC_ERROR_WRITE,
-    UWSC_ERROR_INVALID_HEADER
+    UWSC_ERROR_INVALID_HEADER,
+    UWSC_ERROR_NOT_SUPPORT_FREGMENT
 };
 
 enum client_state {
@@ -34,18 +35,18 @@ enum client_state {
 };
 
 enum websocket_op {
-	WEBSOCKET_OP_CONTINUE = 0x00,
-	WEBSOCKET_OP_TEXT = 0x01,
-	WEBSOCKET_OP_BINARY = 0x02,
-	WEBSOCKET_OP_CLOSE = 0x08,
-	WEBSOCKET_OP_PING = 0x09,
-	WEBSOCKET_OP_PONG = 0x0A
+	WEBSOCKET_OP_CONTINUE = 0x0,
+	WEBSOCKET_OP_TEXT = 0x1,
+	WEBSOCKET_OP_BINARY = 0x2,
+	WEBSOCKET_OP_CLOSE = 0x8,
+	WEBSOCKET_OP_PING = 0x9,
+	WEBSOCKET_OP_PONG = 0xA
 };
 
 struct uwsc_frame {
-	unsigned int fin;
-	unsigned int opcode;
-	unsigned long long payload_len;
+	uint8_t fin;
+	uint8_t opcode;
+	uint64_t payload_len;
 	char *payload;
 };
 
