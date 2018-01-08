@@ -16,6 +16,9 @@
  */
 
 #include <uwsc.h>
+#include <stdio.h>
+#include <string.h>
+#include <unistd.h>
 
 struct uwsc_client *cl;
 struct uloop_fd fd;

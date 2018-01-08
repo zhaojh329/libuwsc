@@ -18,7 +18,11 @@
 #ifndef _UWSC_H
 #define _UWSC_H
 
-#include "common.h"
+#include <libubox/uloop.h>
+#include <libubox/ustream.h>
+
+#include "config.h"
+#include "log.h"
 
 #define UWSC_PING_INTERVAL  30
 

@@ -1,3 +1,7 @@
+#include <stdio.h>
+#include <string.h>
+#include <stdlib.h>
+
 #include "utils.h"
 
 int get_nonce(uint8_t *dest, int len)

@@ -18,7 +18,13 @@
 #ifndef _UTILS_H
 #define _UTILS_H
 
-#include "common.h"
+#include <inttypes.h>
+#include <stdbool.h>
+
+#if (UWSC_SSL_SUPPORT)
+#include <libubox/ustream-ssl.h>
+#include <dlfcn.h>
+#endif
 
 int get_nonce(uint8_t *dest, int len);
 int parse_url(const char *url, char **host, int *port, const char **path, bool *ssl);

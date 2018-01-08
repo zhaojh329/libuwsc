@@ -19,7 +19,7 @@
 #define _LOG_H
 
 #include <syslog.h>
-#include "common.h"
+#include "config.h"
 
 #define __FILENAME__ (strrchr(__FILE__, '/') ? strrchr(__FILE__, '/') + 1 : __FILE__)
 
