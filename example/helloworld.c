@@ -63,7 +63,8 @@ int main(int argc, char **argv)
 {
     uloop_init();
 
-    cl = uwsc_new("ws://192.168.0.100:81/lua");
+    cl = uwsc_new("ws://127.0.0.1:81/lua");
+    //cl = uwsc_new("wss://127.0.0.1:81/lua");
    
    	cl->onopen = uwsc_onopen;
     cl->onmessage = uwsc_onmessage;

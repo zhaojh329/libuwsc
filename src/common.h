@@ -34,10 +34,14 @@
 #include <libubox/uloop.h>
 #include <libubox/utils.h>
 #include <libubox/blobmsg.h>
-#include <libubox/kvlist.h>
 #include <libubox/ustream.h>
 
 #include "config.h"
 #include "log.h"
+
+#if (UWSC_SSL_SUPPORT)
+#include <libubox/ustream-ssl.h>
+#include <dlfcn.h>
+#endif
 
 #endif

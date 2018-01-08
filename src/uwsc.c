@@ -147,9 +147,8 @@ static void uwsc_ping_cb(struct uloop_timeout *timeout)
     uloop_timeout_set(&cl->timeout, UWSC_PING_INTERVAL * 1000);
 }
 
-static void client_ustream_read_cb(struct ustream *s, int bytes)
+static void __uwsc_notify_read(struct uwsc_client *cl, struct ustream *s)
 {
-    struct uwsc_client *cl = container_of(s, struct uwsc_client, sfd.stream);
     char *data;
     int len;
 
@@ -209,9 +208,14 @@ err:
     ustream_state_change(cl->us);
 }
 
-static void client_notify_state(struct ustream *s)
+static inline void uwsc_notify_read(struct ustream *s, int bytes)
 {
     struct uwsc_client *cl = container_of(s, struct uwsc_client, sfd.stream);
+    __uwsc_notify_read(cl, s);
+}
+
+static void __uwsc_notify_state(struct uwsc_client *cl, struct ustream *s)
+{
 
     if (!cl->error && s->write_error)
         cl->error = UWSC_ERROR_WRITE;
@@ -229,6 +233,37 @@ static void client_notify_state(struct ustream *s)
 
     cl->free(cl);
 }
+
+static inline void uwsc_notify_state(struct ustream *s)
+{
+    struct uwsc_client *cl = container_of(s, struct uwsc_client, sfd.stream);
+    __uwsc_notify_state(cl, s);
+}
+
+#if (UWSC_SSL_SUPPORT)
+static inline void uwsc_ssl_notify_read(struct ustream *s, int bytes)
+{
+    struct uwsc_client *cl = container_of(s, struct uwsc_client, ussl.stream);
+    __uwsc_notify_read(cl, s);
+}
+
+static inline void uwsc_ssl_notify_state(struct ustream *s)
+{
+    struct uwsc_client *cl = container_of(s, struct uwsc_client, ussl.stream);
+    __uwsc_notify_state(cl, s);
+}
+
+static void uwsc_ssl_notify_error(struct ustream_ssl *ssl, int error, const char *str)
+{
+    struct uwsc_client *cl = container_of(ssl, struct uwsc_client, ussl);
+
+    cl->us->eof = true;
+    cl->error = UWSC_ERROR_SSL;
+    ustream_state_change(cl->us);
+
+    uwsc_log_err("ssl error:%d:%s", error, str);
+}
+#endif
 
 static int uwsc_send(struct uwsc_client *cl, char *data, int len, enum websocket_op op)
 {
@@ -316,10 +351,11 @@ struct uwsc_client *uwsc_new(const char *url)
     struct uwsc_client *cl = NULL;
     char *host = NULL;
     const char *path = "/";
-    int port = 80;
-    int sock = -1;
+    int port;
+    int sock;
+    bool ssl;
 
-    if (parse_url(url, &host, &port, &path) < 0) {
+    if (parse_url(url, &host, &port, &path, &ssl) < 0) {
         uwsc_log_err("Invalid url");
         return NULL;
     }
@@ -336,12 +372,40 @@ struct uwsc_client *uwsc_new(const char *url)
         goto err;
     }
 
-    cl->us = &cl->sfd.stream;
-    cl->us->notify_read = client_ustream_read_cb;
-    cl->us->notify_state = client_notify_state;
-
-    cl->us->string_data = true;
     ustream_fd_init(&cl->sfd, sock);
+
+    if (ssl) {
+#if (UWSC_SSL_SUPPORT)
+        cl->ssl_ops = init_ustream_ssl();
+        if (!cl->ssl_ops) {
+            uwsc_log_err("SSL support not available,please install one of the libustream-ssl-* libraries");
+            return NULL;
+        }
+
+        cl->ssl_ctx = cl->ssl_ops->context_new(false);
+        if (!cl->ssl_ctx) {
+            uwsc_log_err("ustream_ssl_context_new");
+            return NULL;
+        }
+#else
+        uwsc_log_err("SSL support not available");
+        return NULL;
+#endif
+
+        cl->us = &cl->ussl.stream;
+        cl->us->string_data = true;
+        cl->us->notify_read = uwsc_ssl_notify_read;
+        cl->us->notify_state = uwsc_ssl_notify_state;
+        cl->ussl.notify_error = uwsc_ssl_notify_error;
+        cl->ussl.server_name = host;
+        cl->ssl_ops->init(&cl->ussl, &cl->sfd.stream, cl->ssl_ctx, false);
+        cl->ssl_ops->set_peer_cn(&cl->ussl, host);
+    } else {
+        cl->us = &cl->sfd.stream;
+        cl->us->string_data = true;
+        cl->us->notify_read = uwsc_notify_read;
+        cl->us->notify_state = uwsc_notify_state;
+    }
 
     cl->free = uwsc_free;
     cl->send = uwsc_send;
@@ -349,7 +413,7 @@ struct uwsc_client *uwsc_new(const char *url)
 
     uwsc_handshake(cl, host, port, path);
     free(host);
-
+    
     return cl;
 
 err:

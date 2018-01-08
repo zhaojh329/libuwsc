@@ -21,7 +21,11 @@
 #include "common.h"
 
 int get_nonce(uint8_t *dest, int len);
-int parse_url(const char *url, char **host, int *port, const char **path);
+int parse_url(const char *url, char **host, int *port, const char **path, bool *ssl);
+
+#if (UWSC_SSL_SUPPORT)
+const struct ustream_ssl_ops *init_ustream_ssl();
+#endif
 
 #endif
 

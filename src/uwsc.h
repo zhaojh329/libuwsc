@@ -25,7 +25,9 @@
 enum uwsc_error_code {
     UWSC_ERROR_WRITE,
     UWSC_ERROR_INVALID_HEADER,
-    UWSC_ERROR_NOT_SUPPORT_FREGMENT
+    UWSC_ERROR_NOT_SUPPORT_FREGMENT,
+    UWSC_ERROR_SSL,
+    UWSC_ERROR_SSL_INVALID_CERT
 };
 
 enum client_state {
@@ -57,6 +59,12 @@ struct uwsc_client {
     struct uwsc_frame frame;
     struct uloop_timeout timeout;
     enum uwsc_error_code error;
+    
+#if (UWSC_SSL_SUPPORT)
+    struct ustream_ssl ussl;
+	struct ustream_ssl_ctx *ssl_ctx;
+	const struct ustream_ssl_ops *ssl_ops;
+#endif
 
 	void (*onopen)(struct uwsc_client *cl);
     void (*onmessage)(struct uwsc_client *cl, char *data, uint64_t len, enum websocket_op op);

@@ -20,6 +20,13 @@ if(UWSC_DEBUG)
     set(UWSC_DEBUG_CONFIG 1)
 endif()
 
+set(UWSC_SSL_SUPPORT_CONFIG 1)
+option(UWSC_SSL_SUPPORT "SSL support" ON)
+
+if(NOT UWSC_SSL_SUPPORT)
+    set(UWSC_SSL_SUPPORT_CONFIG 0)
+endif()
+
 add_library(uwsc SHARED ${SOURCE_FILES})
 set_target_properties(uwsc PROPERTIES VERSION ${UWSC_VERSION_MAJOR}.${UWSC_VERSION_MINOR}.${UWSC_VERSION_PATCH})
 target_link_libraries(uwsc ${EXTRA_LIBS})
@@ -44,4 +51,5 @@ install(
 message("")
 message(STATUS "UWSC_VERSION: ${UWSC_VERSION_MAJOR}.${UWSC_VERSION_MINOR}.${UWSC_VERSION_PATCH}")
 message(STATUS "UWSC_DEBUG: ${UWSC_DEBUG}")
+message(STATUS "UWSC_SSL_SUPPORT: ${UWSC_SSL_SUPPORT}")
 message("")
