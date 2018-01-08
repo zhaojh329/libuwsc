@@ -28,4 +28,3 @@ const struct ustream_ssl_ops *init_ustream_ssl();
 #endif
 
 #endif
-

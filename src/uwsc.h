@@ -31,42 +31,42 @@ enum uwsc_error_code {
 };
 
 enum client_state {
-	CLIENT_STATE_INIT,
-	CLIENT_STATE_HANDSHAKE,
-	CLIENT_STATE_MESSAGE
+    CLIENT_STATE_INIT,
+    CLIENT_STATE_HANDSHAKE,
+    CLIENT_STATE_MESSAGE
 };
 
 enum websocket_op {
-	WEBSOCKET_OP_CONTINUE = 0x0,
-	WEBSOCKET_OP_TEXT = 0x1,
-	WEBSOCKET_OP_BINARY = 0x2,
-	WEBSOCKET_OP_CLOSE = 0x8,
-	WEBSOCKET_OP_PING = 0x9,
-	WEBSOCKET_OP_PONG = 0xA
+    WEBSOCKET_OP_CONTINUE = 0x0,
+    WEBSOCKET_OP_TEXT = 0x1,
+    WEBSOCKET_OP_BINARY = 0x2,
+    WEBSOCKET_OP_CLOSE = 0x8,
+    WEBSOCKET_OP_PING = 0x9,
+    WEBSOCKET_OP_PONG = 0xA
 };
 
 struct uwsc_frame {
-	uint8_t fin;
-	uint8_t opcode;
-	uint64_t payload_len;
-	char *payload;
+    uint8_t fin;
+    uint8_t opcode;
+    uint64_t payload_len;
+    char *payload;
 };
 
 struct uwsc_client {
-	struct ustream *us;
+    struct ustream *us;
     struct ustream_fd sfd;
-	enum client_state state;
+    enum client_state state;
     struct uwsc_frame frame;
     struct uloop_timeout timeout;
     enum uwsc_error_code error;
     
 #if (UWSC_SSL_SUPPORT)
     struct ustream_ssl ussl;
-	struct ustream_ssl_ctx *ssl_ctx;
-	const struct ustream_ssl_ops *ssl_ops;
+    struct ustream_ssl_ctx *ssl_ctx;
+    const struct ustream_ssl_ops *ssl_ops;
 #endif
 
-	void (*onopen)(struct uwsc_client *cl);
+    void (*onopen)(struct uwsc_client *cl);
     void (*onmessage)(struct uwsc_client *cl, char *data, uint64_t len, enum websocket_op op);
     void (*onerror)(struct uwsc_client *cl);
     void (*onclose)(struct uwsc_client *cl);

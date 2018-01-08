@@ -42,4 +42,3 @@ void __uwsc_log(const char *filename, int line, int priority, const char *format
         fprintf(stderr, "%s\n", buf);
 #endif
 }
-
