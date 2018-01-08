@@ -4,7 +4,7 @@ add_definitions(-g3 -O -Wall -Werror --std=gnu99 -D_GNU_SOURCE -Wno-misleading-i
 # The version number.
 set(UWSC_VERSION_MAJOR 1)
 set(UWSC_VERSION_MINOR 0)
-set(UWSC_VERSION_PATCH 1)
+set(UWSC_VERSION_PATCH 2)
 
 # Check the third party Libraries
 find_package(Libubox REQUIRED)
