@@ -1,5 +1,5 @@
-me format:  
-​​
+frame format:  
+
       0                   1                   2                   3
       0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
      +-+-+-+-+-------+-+-------------+-------------------------------+
@@ -18,3 +18,20 @@ me format:
      + - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - +
      |                     Payload Data continued ...                |
      +---------------------------------------------------------------+
+
+Opcode:
+	  0x0 denotes a continuation frame
+
+      0x1 denotes a text frame
+
+      0x2 denotes a binary frame
+
+      0x3-0x7 are reserved for further non-control frames
+
+      0x8 denotes a connection close
+
+      0x9 denotes a ping
+
+      0xA denotes a pong
+
+      0xB-0xF are reserved for further control frames
