@@ -24,6 +24,10 @@
 #include "config.h"
 #include "log.h"
 
+#if (UWSC_SSL_SUPPORT)
+#include <libubox/ustream-ssl.h>
+#endif
+
 #define UWSC_PING_INTERVAL  30
 
 enum uwsc_error_code {

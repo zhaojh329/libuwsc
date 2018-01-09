@@ -20,6 +20,7 @@
 
 #include <inttypes.h>
 #include <stdbool.h>
+#include "config.h"
 
 #if (UWSC_SSL_SUPPORT)
 #include <libubox/ustream-ssl.h>
