@@ -14,12 +14,6 @@ include_directories(${CMAKE_CURRENT_BINARY_DIR} ${LIBUBOX_INCLUDE_DIR})
 set(EXTRA_LIBS ${LIBUBOX_LIBRARY} dl)
 set(SOURCE_FILES uwsc.c log.c utils.c)
 
-set(UWSC_DEBUG_CONFIG 0)
-option(UWSC_DEBUG "Turn on debug" OFF)
-if(UWSC_DEBUG)
-    set(UWSC_DEBUG_CONFIG 1)
-endif()
-
 set(UWSC_SSL_SUPPORT_CONFIG 1)
 option(UWSC_SSL_SUPPORT "SSL support" ON)
 
@@ -50,6 +44,5 @@ install(
 
 message("")
 message(STATUS "UWSC_VERSION: ${UWSC_VERSION_MAJOR}.${UWSC_VERSION_MINOR}.${UWSC_VERSION_PATCH}")
-message(STATUS "UWSC_DEBUG: ${UWSC_DEBUG}")
 message(STATUS "UWSC_SSL_SUPPORT: ${UWSC_SSL_SUPPORT}")
 message("")
