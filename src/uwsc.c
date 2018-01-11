@@ -274,20 +274,27 @@ static void uwsc_ssl_notify_error(struct ustream_ssl *ssl, int error, const char
 
 static int uwsc_send(struct uwsc_client *cl, char *data, int len, enum websocket_op op)
 {
-    char buf[1024] = "";
-    char *p = buf;
+    char *buf, *p;
     uint8_t mask_key[4];
     int i;
     int frame_size = 0;
-
-    get_nonce(mask_key, 4);
-
-    *p++ = 0x80 | op;   /* FIN and opcode */
 
     if (len > INT_MAX - 8) {
         uwsc_log_err("Payload too big");
         return -1;
     }
+
+    buf = malloc(len + 8);
+    if (!buf) {
+        uwsc_log_err("NO mem");
+        return -1;
+    }
+
+    p = buf;
+
+    get_nonce(mask_key, 4);
+
+    *p++ = 0x80 | op;   /* FIN and opcode */
 
     if (len < 126) {
         *p++ = 0x80 | len;
@@ -318,6 +325,8 @@ static int uwsc_send(struct uwsc_client *cl, char *data, int len, enum websocket
     }
 
     ustream_write(cl->us, buf, frame_size, false);
+
+    free(buf);
 
     return 0;
 }
