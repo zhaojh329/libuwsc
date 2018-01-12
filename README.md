@@ -1,4 +1,4 @@
-# libuwsc([中文](https://github.com/zhaojh329/libuwsc/blob/master/README_ZH.md))
+# libuwsc([中文](/README_ZH.md))
 
 ![](https://img.shields.io/badge/license-GPLV3-brightgreen.svg?style=plastic "License")
 
