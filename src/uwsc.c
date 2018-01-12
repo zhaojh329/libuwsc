@@ -19,6 +19,7 @@
 #include <string.h>
 #include <limits.h>
 #include <unistd.h>
+ #include <errno.h>
 #include <arpa/inet.h>
 #include <libubox/usock.h>
 #include <libubox/utils.h>
@@ -368,14 +369,18 @@ struct uwsc_client *uwsc_new(const char *url)
     int port;
     int sock;
     bool ssl;
+    time_t t;
 
     if (parse_url(url, &host, &port, &path, &ssl) < 0) {
         uwsc_log_err("Invalid url");
         return NULL;
     }
 
-    sock = usock(USOCK_TCP, host, usock_port(port));
+    time(&t);
+    sock = usock_inet_timeout(USOCK_TCP, host, usock_port(port), NULL, 5000);
     if (sock < 0) {
+        if (time(NULL) - t > 4)
+            errno = ETIMEDOUT;
         uwsc_log_err("usock");
         goto err;
     }
