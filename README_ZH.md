@@ -8,7 +8,7 @@
 [mbedtls]: https://github.com/ARMmbed/mbedtls
 [CyaSSl(wolfssl)]: https://github.com/wolfSSL/wolfssl
 
-一个针对嵌入式Linux的基于[libubox]的WebSocket客户端C库。
+一个轻量的针对嵌入式Linux的基于[libubox]的WebSocket客户端C库。
 
 `请保持关注以获取最新的项目动态`
 
