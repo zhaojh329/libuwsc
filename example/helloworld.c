@@ -75,6 +75,9 @@ int main(int argc, char **argv)
     cl->onclose = uwsc_onclose;
     
     uloop_run();
+
+    cl->send(cl, NULL, 0, WEBSOCKET_OP_CLOSE);
+
     uloop_done();
     
     return 0;
