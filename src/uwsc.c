@@ -237,8 +237,6 @@ static void __uwsc_notify_state(struct uwsc_client *cl, struct ustream *s)
 
     if (cl->onclose)
         cl->onclose(cl);
-
-    cl->free(cl);
 }
 
 static inline void uwsc_notify_state(struct ustream *s)

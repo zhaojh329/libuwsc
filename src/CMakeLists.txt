@@ -1,5 +1,5 @@
 
-add_definitions(-g3 -O -Wall -Werror --std=gnu99 -D_GNU_SOURCE -Wno-misleading-indentation)
+add_definitions(-O -Wall -Werror --std=gnu99 -D_GNU_SOURCE -Wno-misleading-indentation)
 
 # The version number.
 set(UWSC_VERSION_MAJOR 1)
