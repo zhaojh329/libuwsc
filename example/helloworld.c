@@ -58,7 +58,6 @@ static void uwsc_onerror(struct uwsc_client *cl)
 static void uwsc_onclose(struct uwsc_client *cl)
 {
     printf("onclose\n");
-    cl->free(cl);
     uloop_done();
 }
 
@@ -77,6 +76,7 @@ int main(int argc, char **argv)
     uloop_run();
 
     cl->send(cl, NULL, 0, WEBSOCKET_OP_CLOSE);
+    cl->free(cl);
 
     uloop_done();
     
