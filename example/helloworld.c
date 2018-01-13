@@ -17,10 +17,11 @@
 
 #include <uwsc.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
 
-struct uwsc_client *cl;
+struct uwsc_client *gcl;
 struct uloop_fd fd;
 
 void fd_handler(struct uloop_fd *u, unsigned int events)
@@ -32,7 +33,7 @@ void fd_handler(struct uloop_fd *u, unsigned int events)
     if (n > 1) {
         buf[n - 1] = 0;
         printf("You input:[%s]\n", buf);
-        cl->send(cl, buf, strlen(buf) + 1, WEBSOCKET_OP_TEXT);
+        gcl->send(gcl, buf, strlen(buf) + 1, WEBSOCKET_OP_TEXT);
     }
 }
 
@@ -58,28 +59,60 @@ static void uwsc_onerror(struct uwsc_client *cl)
 static void uwsc_onclose(struct uwsc_client *cl)
 {
     printf("onclose\n");
-    uloop_done();
+    uloop_end();
+}
+
+static void usage(const char *prog)
+{
+    fprintf(stderr, "Usage: %s [option]\n"
+        "      -u url       # ws://localhost:8080/ws\n"
+        "      -c file      # Load CA certificates from file\n"
+        "      -n           # don't validate the server's certificate\n"
+        , prog);
+    exit(1);
 }
 
 int main(int argc, char **argv)
 {
+    int opt;
+    static bool verify = true;
+    const char *url = "ws://localhost:8080/ws";
+    const char *crt_file = NULL;
+
+    while ((opt = getopt(argc, argv, "u:nc:")) != -1) {
+        switch (opt)
+        {
+        case 'u':
+            url = optarg;
+            break;
+        case 'n':
+            verify = false;
+            break;
+        case 'c':
+            crt_file = optarg;
+            break;
+        default: /* '?' */
+            usage(argv[0]);
+        }
+    }
+
     uloop_init();
 
-    cl = uwsc_new("ws://127.0.0.1/test");
-    if (!cl) {
+    gcl = uwsc_new_ssl(url, crt_file, verify);
+    if (!gcl) {
         uloop_done();
         return -1;
     }
    
-    cl->onopen = uwsc_onopen;
-    cl->onmessage = uwsc_onmessage;
-    cl->onerror = uwsc_onerror;
-    cl->onclose = uwsc_onclose;
+    gcl->onopen = uwsc_onopen;
+    gcl->onmessage = uwsc_onmessage;
+    gcl->onerror = uwsc_onerror;
+    gcl->onclose = uwsc_onclose;
     
     uloop_run();
 
-    cl->send(cl, NULL, 0, WEBSOCKET_OP_CLOSE);
-    cl->free(cl);
+    gcl->send(gcl, NULL, 0, WEBSOCKET_OP_CLOSE);
+    gcl->free(gcl);
 
     uloop_done();
     

@@ -35,7 +35,8 @@ enum uwsc_error_code {
     UWSC_ERROR_INVALID_HEADER,
     UWSC_ERROR_NOT_SUPPORT_FREGMENT,
     UWSC_ERROR_SSL,
-    UWSC_ERROR_SSL_INVALID_CERT
+    UWSC_ERROR_SSL_INVALID_CERT,
+    UWSC_ERROR_SSL_CN_MISMATCH
 };
 
 enum client_state {
@@ -69,6 +70,7 @@ struct uwsc_client {
     enum uwsc_error_code error;
     
 #if (UWSC_SSL_SUPPORT)
+    bool ssl_require_validation;
     struct ustream_ssl ussl;
     struct ustream_ssl_ctx *ssl_ctx;
     const struct ustream_ssl_ops *ssl_ops;
@@ -83,6 +85,11 @@ struct uwsc_client {
     void (*free)(struct uwsc_client *cl);
 };
 
-struct uwsc_client *uwsc_new(const char *url);
+struct uwsc_client *uwsc_new_ssl(const char *url, const char *ca_crt_file, bool verify);
+
+static inline struct uwsc_client *uwsc_new(const char *url)
+{
+    return uwsc_new_ssl(url, NULL, false);
+}
 
 #endif

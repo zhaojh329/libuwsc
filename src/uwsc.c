@@ -19,7 +19,7 @@
 #include <string.h>
 #include <limits.h>
 #include <unistd.h>
- #include <errno.h>
+#include <glob.h>
 #include <arpa/inet.h>
 #include <libubox/usock.h>
 #include <libubox/utils.h>
@@ -34,7 +34,18 @@ static void uwsc_free(struct uwsc_client *cl)
     ustream_free(&cl->sfd.stream);
     shutdown(cl->sfd.fd.fd, SHUT_RDWR);
     close(cl->sfd.fd.fd);
+#if (UWSC_SSL_SUPPORT)
+    if (cl->ssl_ops && cl->ssl_ctx)
+        cl->ssl_ops->context_free(cl->ssl_ctx);
+#endif
     free(cl);
+}
+
+static inline void uwsc_error(struct uwsc_client *cl, int error)
+{
+    cl->us->eof = true;
+    cl->error = error;
+    ustream_state_change(cl->us);
 }
 
 static void dispach_message(struct uwsc_client *cl)
@@ -59,14 +70,14 @@ static void dispach_message(struct uwsc_client *cl)
 
 static void parse_frame(struct uwsc_client *cl, char *data)
 {
+    int error = 0;
     struct uwsc_frame *frame = &cl->frame;
-    
     frame->fin = (data[0] & 0x80) ? 1 : 0;
     frame->opcode = data[0] & 0x0F;
 
     if (!frame->fin) {
         uwsc_log_err("Not support fregment");
-        cl->error = UWSC_ERROR_NOT_SUPPORT_FREGMENT;
+        error = UWSC_ERROR_NOT_SUPPORT_FREGMENT;
         cl->send(cl, NULL, 0, WEBSOCKET_OP_CLOSE);
         goto err;
     }
@@ -97,8 +108,7 @@ static void parse_frame(struct uwsc_client *cl, char *data)
     return;
 
 err:
-    cl->us->eof = true;
-    ustream_state_change(cl->us);
+    uwsc_error(cl, error);
 }
 
 static int parse_header(struct uwsc_client *cl, char *data)
@@ -209,9 +219,7 @@ static void __uwsc_notify_read(struct uwsc_client *cl, struct ustream *s)
     return;
 
 err:
-    cl->us->eof = true;
-    cl->error = UWSC_ERROR_INVALID_HEADER;
-    ustream_state_change(cl->us);
+    uwsc_error(cl, UWSC_ERROR_INVALID_HEADER);
 }
 
 static inline void uwsc_notify_read(struct ustream *s, int bytes)
@@ -261,12 +269,34 @@ static void uwsc_ssl_notify_error(struct ustream_ssl *ssl, int error, const char
 {
     struct uwsc_client *cl = container_of(ssl, struct uwsc_client, ussl);
 
-    cl->us->eof = true;
-    cl->error = UWSC_ERROR_SSL;
-    ustream_state_change(cl->us);
-
+    uwsc_error(cl, UWSC_ERROR_SSL);
     uwsc_log_err("ssl error:%d:%s", error, str);
 }
+
+static void uwsc_ssl_notify_verify_error(struct ustream_ssl *ssl, int error, const char *str)
+{
+    struct uwsc_client *cl = container_of(ssl, struct uwsc_client, ussl);
+
+    if (!cl->ssl_require_validation)
+        return;
+
+    uwsc_error(cl, UWSC_ERROR_SSL_INVALID_CERT);
+    uwsc_log_err("ssl error:%d:%s", error, str);
+}
+
+static void uwsc_ssl_notify_connected(struct ustream_ssl *ssl)
+{
+    struct uwsc_client *cl = container_of(ssl, struct uwsc_client, ussl);
+
+    if (!cl->ssl_require_validation)
+        return;
+
+    if (!cl->ussl.valid_cn) {
+        uwsc_error(cl, UWSC_ERROR_SSL_CN_MISMATCH);
+        uwsc_log_err("ssl error: cn mismatch");
+    }
+}
+
 #endif
 
 static int uwsc_send(struct uwsc_client *cl, char *data, int len, enum websocket_op op)
@@ -359,7 +389,7 @@ static void uwsc_handshake(struct uwsc_client *cl, const char *host, int port, c
     cl->state = CLIENT_STATE_HANDSHAKE;
 }
 
-struct uwsc_client *uwsc_new(const char *url)
+struct uwsc_client *uwsc_new_ssl(const char *url, const char *ca_crt_file, bool verify)
 {
     struct uwsc_client *cl = NULL;
     char *host = NULL;
@@ -373,7 +403,7 @@ struct uwsc_client *uwsc_new(const char *url)
         return NULL;
     }
 
-    sock = usock(USOCK_TCP | USOCK_NOCLOEXEC | USOCK_NONBLOCK, host, usock_port(port));
+    sock = usock(USOCK_TCP | USOCK_NOCLOEXEC, host, usock_port(port));
     if (sock < 0) {
         uwsc_log_err("usock");
         goto err;
@@ -390,6 +420,10 @@ struct uwsc_client *uwsc_new(const char *url)
         goto err;
     }
 
+    cl->free = uwsc_free;
+    cl->send = uwsc_send;
+    cl->ping = uwsc_ping;
+
     ustream_fd_init(&cl->sfd, sock);
 
     if (ssl) {
@@ -397,13 +431,31 @@ struct uwsc_client *uwsc_new(const char *url)
         cl->ssl_ops = init_ustream_ssl();
         if (!cl->ssl_ops) {
             uwsc_log_err("SSL support not available,please install one of the libustream-ssl-* libraries");
-            return NULL;
+            goto err;
         }
 
         cl->ssl_ctx = cl->ssl_ops->context_new(false);
         if (!cl->ssl_ctx) {
             uwsc_log_err("ustream_ssl_context_new");
-            return NULL;
+            goto err;
+        }
+
+        if (ca_crt_file) {
+            if (cl->ssl_ops->context_add_ca_crt_file(cl->ssl_ctx, ca_crt_file)) {
+                uwsc_log_err("Load CA certificates failed");
+                goto err;
+            }
+        } else if (verify) {
+            int i;
+            glob_t gl;
+
+            cl->ssl_require_validation = true;
+
+            if (!glob("/etc/ssl/certs/*.crt", 0, NULL, &gl)) {
+                for (i = 0; i < gl.gl_pathc; i++)
+                    cl->ssl_ops->context_add_ca_crt_file(cl->ssl_ctx, gl.gl_pathv[i]);
+                globfree(&gl);
+            }
         }
 
         cl->us = &cl->ussl.stream;
@@ -411,6 +463,8 @@ struct uwsc_client *uwsc_new(const char *url)
         cl->us->notify_read = uwsc_ssl_notify_read;
         cl->us->notify_state = uwsc_ssl_notify_state;
         cl->ussl.notify_error = uwsc_ssl_notify_error;
+        cl->ussl.notify_verify_error = uwsc_ssl_notify_verify_error;
+        cl->ussl.notify_connected = uwsc_ssl_notify_connected;
         cl->ussl.server_name = host;
         cl->ssl_ops->init(&cl->ussl, &cl->sfd.stream, cl->ssl_ctx, false);
         cl->ssl_ops->set_peer_cn(&cl->ussl, host);
@@ -425,10 +479,6 @@ struct uwsc_client *uwsc_new(const char *url)
         cl->us->notify_state = uwsc_notify_state;
     }
 
-    cl->free = uwsc_free;
-    cl->send = uwsc_send;
-    cl->ping = uwsc_ping;
-
     uwsc_handshake(cl, host, port, path);
     free(host);
     
@@ -442,4 +492,4 @@ err:
         cl->free(cl);
 
     return NULL;    
-}    
+}
