@@ -122,8 +122,6 @@ static int parse_header(struct uwsc_client *cl, char *data)
         while (*v == ' ')
             v++;
 
-        uwsc_log_debug("%s:%s", k, v);
-
         if (!strcasecmp(k, "Upgrade") && !strcasecmp(v, "websocket"))
             has_upgrade = true;
 
