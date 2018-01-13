@@ -367,19 +367,20 @@ struct uwsc_client *uwsc_new(const char *url)
     int port;
     int sock;
     bool ssl;
-    time_t t;
 
     if (parse_url(url, &host, &port, &path, &ssl) < 0) {
         uwsc_log_err("Invalid url");
         return NULL;
     }
 
-    time(&t);
-    sock = usock_inet_timeout(USOCK_TCP, host, usock_port(port), NULL, 5000);
+    sock = usock(USOCK_TCP | USOCK_NOCLOEXEC | USOCK_NONBLOCK, host, usock_port(port));
     if (sock < 0) {
-        if (time(NULL) - t > 4)
-            errno = ETIMEDOUT;
         uwsc_log_err("usock");
+        goto err;
+    }
+
+    if (usock_wait_ready(sock, 5000)) {
+        uwsc_log_err("usock_wait_ready");
         goto err;
     }
 
