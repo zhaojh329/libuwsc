@@ -409,11 +409,6 @@ struct uwsc_client *uwsc_new_ssl(const char *url, const char *ca_crt_file, bool 
         goto err;
     }
 
-    if (usock_wait_ready(sock, 5000)) {
-        uwsc_log_err("usock_wait_ready");
-        goto err;
-    }
-
     cl = calloc(1, sizeof(struct uwsc_client));
     if (!cl) {
         uwsc_log_err("calloc");
