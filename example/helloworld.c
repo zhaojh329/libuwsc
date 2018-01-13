@@ -48,7 +48,17 @@ static void uwsc_onopen(struct uwsc_client *cl)
 
 static void uwsc_onmessage(struct uwsc_client *cl, char *data, uint64_t len, enum websocket_op op)
 {
-    printf("recv:[%.*s]\n", (int)len, data);
+    if (op == WEBSOCKET_OP_BINARY) {
+        uint64_t i;
+        for (i = 0; i < len; i++) {
+            printf("%02hhX ", data[i]);
+            if (i % 16 == 0 && i > 0)
+                puts("");
+        }
+        puts("");
+    } else if (op == WEBSOCKET_OP_TEXT) {
+        printf("recv:[%s]\n", data);
+    }
 }
 
 static void uwsc_onerror(struct uwsc_client *cl)
