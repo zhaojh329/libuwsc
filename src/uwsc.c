@@ -182,16 +182,16 @@ static void __uwsc_notify_read(struct uwsc_client *cl, struct ustream *s)
 
         if (!status_code || atoi(status_code) != 101) {
             uwsc_log_err("Invalid status code");
-            goto err;;
+            goto err;
         }
 
         if (!summary) {
             uwsc_log_err("Invalid summary");
-            goto err;;
+            goto err;
         }
 
         if (parse_header(cl, data))
-            goto err;;
+            goto err;
 
         ustream_consume(cl->us, p + 4 - data);
 
