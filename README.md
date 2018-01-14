@@ -34,6 +34,10 @@ add new feed into "feeds.conf.default":
 
     src-git libuwsc https://github.com/zhaojh329/libuwsc-feed.git
 
+for chaos_calmer(15.05)
+
+    src-git libuwsc https://github.com/zhaojh329/libuwsc-feed.git;for-15.05
+
 Install libuwsc packages:
 
     ./scripts/feeds update libuwsc
