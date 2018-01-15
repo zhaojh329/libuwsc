@@ -55,7 +55,7 @@ enum websocket_op {
 };
 
 struct uwsc_frame {
-    uint8_t fin;
+    bool fragmented;
     uint8_t opcode;
     uint64_t payload_len;
     char *payload;

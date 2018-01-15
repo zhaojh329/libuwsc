@@ -70,17 +70,13 @@ static void dispach_message(struct uwsc_client *cl)
 
 static void parse_frame(struct uwsc_client *cl, char *data)
 {
-    int error = 0;
     struct uwsc_frame *frame = &cl->frame;
-    frame->fin = (data[0] & 0x80) ? 1 : 0;
-    frame->opcode = data[0] & 0x0F;
-
-    if (!frame->fin) {
-        uwsc_log_err("Not support fregment");
-        error = UWSC_ERROR_NOT_SUPPORT_FREGMENT;
-        cl->send(cl, NULL, 0, WEBSOCKET_OP_CLOSE);
-        goto err;
-    }
+    uint8_t fin, opcode;
+    uint64_t payload_len;
+    char *payload;
+    
+    fin = (data[0] & 0x80) ? 1 : 0;
+    opcode = data[0] & 0x0F;
 
     if (data[1] & 0x80) {
         uwsc_log_err("Masked error");
@@ -88,27 +84,57 @@ static void parse_frame(struct uwsc_client *cl, char *data)
         return;
     }
 
-    frame->payload_len = data[1] & 0x7F;
-    frame->payload = data + 2;
+    payload_len = data[1] & 0x7F;
+    payload = data + 2;
 
-    switch (frame->payload_len) {
+    switch (payload_len) {
     case 126:
-        frame->payload_len = ntohs(*(uint16_t *)&data[2]);
-        frame->payload += 2;
+        payload_len = ntohs(*(uint16_t *)&data[2]);
+        payload += 2;
         break;
     case 127:
-        frame->payload_len = (((uint64_t)ntohl(*(uint32_t *)&data[2])) << 32) + ntohl(*(uint32_t *)&data[6]);
-        frame->payload += 8;
+        payload_len = (((uint64_t)ntohl(*(uint32_t *)&data[2])) << 32) + ntohl(*(uint32_t *)&data[6]);
+        payload += 8;
         break;
     default:
         break;
     }
 
-    dispach_message(cl);
-    return;
+    if (frame->fragmented) {
+        int new_len = frame->payload_len + payload_len;
 
-err:
-    uwsc_error(cl, error);
+        if (fin && opcode == WEBSOCKET_OP_TEXT)
+            new_len += 1;
+        
+        frame->payload = realloc(frame->payload, new_len);
+        if (!frame->payload) {
+            uwsc_log_err("No mem");
+            cl->send(cl, NULL, 0, WEBSOCKET_OP_CLOSE);
+            return;
+        }
+
+        memcpy(frame->payload + frame->payload_len, payload, payload_len);
+        frame->payload[payload_len - 1] = 0;
+        frame->payload_len = new_len;
+    } else {
+        frame->opcode = opcode;
+        frame->payload_len = payload_len;
+        frame->payload = payload;
+
+        if (!fin) {
+            frame->fragmented = true;
+            frame->payload = malloc(payload_len);
+            memcpy(frame->payload, payload, payload_len);
+        }
+    }
+
+    if (fin) {
+        dispach_message(cl);
+        if (frame->fragmented) {
+            frame->fragmented = false;
+            free(frame->payload);
+        }
+    }
 }
 
 static int parse_header(struct uwsc_client *cl, char *data)
