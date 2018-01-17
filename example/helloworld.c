@@ -20,6 +20,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <libubox/ulog.h>
 
 struct uwsc_client *gcl;
 struct uloop_fd fd;
@@ -78,6 +79,7 @@ static void usage(const char *prog)
         "      -u url       # ws://localhost:8080/ws\n"
         "      -c file      # Load CA certificates from file\n"
         "      -n           # don't validate the server's certificate\n"
+        "      -v           # verbose\n"
         , prog);
     exit(1);
 }
@@ -85,11 +87,12 @@ static void usage(const char *prog)
 int main(int argc, char **argv)
 {
     int opt;
-    static bool verify = true;
     const char *url = "ws://localhost:8080/ws";
     const char *crt_file = NULL;
+    bool verify = true;
+    bool verbose = false;
 
-    while ((opt = getopt(argc, argv, "u:nc:")) != -1) {
+    while ((opt = getopt(argc, argv, "u:nc:v")) != -1) {
         switch (opt)
         {
         case 'u':
@@ -101,10 +104,16 @@ int main(int argc, char **argv)
         case 'c':
             crt_file = optarg;
             break;
+        case 'v':
+            verbose = true;
+            break;
         default: /* '?' */
             usage(argv[0]);
         }
     }
+
+    if (!verbose)
+        ulog_threshold(LOG_ERR);
 
     uloop_init();
 

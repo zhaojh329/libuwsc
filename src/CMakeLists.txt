@@ -32,7 +32,6 @@ install(
     FILES
 	    ${CMAKE_CURRENT_BINARY_DIR}/config.h
 	    ${CMAKE_CURRENT_SOURCE_DIR}/uwsc.h
-	    ${CMAKE_CURRENT_SOURCE_DIR}/log.h
     DESTINATION
     	include/uwsc
 )
