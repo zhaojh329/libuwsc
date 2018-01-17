@@ -40,7 +40,7 @@ void fd_handler(struct uloop_fd *u, unsigned int events)
 
 static void uwsc_onopen(struct uwsc_client *cl)
 {
-    uwsc_log_debug("onopen");
+    ULOG_INFO("onopen");
 
     fd.fd = STDIN_FILENO;
     fd.cb = fd_handler;
@@ -64,12 +64,12 @@ static void uwsc_onmessage(struct uwsc_client *cl, char *data, uint64_t len, enu
 
 static void uwsc_onerror(struct uwsc_client *cl)
 {
-    printf("onerror:%d\n", cl->error);
+    ULOG_INFO("onerror:%d\n", cl->error);
 }
 
 static void uwsc_onclose(struct uwsc_client *cl)
 {
-    printf("onclose\n");
+    ULOG_INFO("onclose\n");
     uloop_end();
 }
 
