@@ -22,7 +22,6 @@
 #include <libubox/ustream.h>
 
 #include "config.h"
-#include "log.h"
 
 #if (UWSC_SSL_SUPPORT)
 #include <libubox/ustream-ssl.h>
