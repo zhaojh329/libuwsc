@@ -61,8 +61,8 @@ static void dispach_message(struct uwsc_client *cl)
         cl->send(cl, frame->payload, frame->payload_len, WEBSOCKET_OP_PONG);
         break;
     case WEBSOCKET_OP_CLOSE:
-        if (cl->onclose)
-            cl->onclose(cl);
+        uwsc_error(cl, 0);
+        break;
     default:
         break;
     }
