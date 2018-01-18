@@ -15,8 +15,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _CONFIG_H
-#define _CONFIG_H
+#ifndef _UWSC_CONFIG_H
+#define _UWSC_CONFIG_H
 
 #define UWSC_VERSION_MAJOR @UWSC_VERSION_MAJOR@
 #define UWSC_VERSION_MINOR @UWSC_VERSION_MINOR@
