@@ -25,7 +25,7 @@ If you want to contribute to [libuwsc](https://github.com/zhaojh329/libuwsc), pl
 5. Commit and push your changes, then make a pull request from Github.
 
     git commit --signoff
-    git push
+    git push origin libuwsc-1-fix
  
 6. Awaiting review, if accepted, merged!
 
