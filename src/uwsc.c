@@ -54,6 +54,7 @@ static void dispach_message(struct uwsc_client *cl)
 
     switch (frame->opcode) {
     case WEBSOCKET_OP_TEXT:
+    case WEBSOCKET_OP_BINARY:
         if (cl->onmessage)
             cl->onmessage(cl, frame->payload, frame->payload_len, frame->opcode);
         break;
