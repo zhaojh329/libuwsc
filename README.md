@@ -42,20 +42,21 @@ See which configuration are supported
 	~/libuwsc/build$ make && sudo make install
 	
 # How to use on OpenWRT
-add new feed into "feeds.conf.default":
+Update feeds:
 
-    src-git libuwsc https://github.com/zhaojh329/libuwsc-feed.git
+    ./scripts/feeds update -a
+    ./scripts/feeds install -a
 
-for chaos_calmer(15.05)
+For chaos_calmer(15.05), you need to modify the Makefile: feeds/packages/libs/libuwsc/Makefile
 
-    src-git libuwsc https://github.com/zhaojh329/libuwsc-feed.git;for-15.05
+    PKG_SOURCE_URL=https://github.com/zhaojh329/libuwsc.git
+    # Add the following two lines
+    PKG_SOURCE_SUBDIR:=$(PKG_NAME)-$(PKG_VERSION)
+    PKG_SOURCE:=$(PKG_NAME)-$(PKG_VERSION)-$(PKG_SOURCE_VERSION).tar.gz
+    # And comment the line below
+    #PKG_MIRROR_HASH:=4aada7e2941fb9f099869c9dc10ef6411f1c355c3b2f570011b91e42feffbfdd
 
-Install libuwsc packages:
-
-    ./scripts/feeds update libuwsc
-    ./scripts/feeds install -a -p libuwsc
-
-Select package libuwsc in menuconfig and compile new image.
+Select libuwsc in menuconfig and compile new image.
 
     Libraries  --->
         Networking  --->
