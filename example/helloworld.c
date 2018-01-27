@@ -40,7 +40,7 @@ void fd_handler(struct uloop_fd *u, unsigned int events)
 
 static void uwsc_onopen(struct uwsc_client *cl)
 {
-    ULOG_INFO("onopen");
+    ULOG_INFO("onopen\n");
 
     fd.fd = STDIN_FILENO;
     fd.cb = fd_handler;
