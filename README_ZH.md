@@ -6,7 +6,7 @@
 [4]: https://github.com/zhaojh329/libuwsc/pulls
 [5]: https://img.shields.io/badge/Issues-welcome-brightgreen.svg?style=plastic
 [6]: https://github.com/zhaojh329/libuwsc/issues/new
-[7]: https://img.shields.io/badge/release-1.0.9-blue.svg?style=plastic
+[7]: https://img.shields.io/badge/release-1.1.0-blue.svg?style=plastic
 [8]: https://github.com/zhaojh329/libuwsc/releases
 
 [![license][1]][2]
@@ -43,20 +43,21 @@
 	~/libuwsc/build$ make && sudo make install
 
 # 如何在OpenWRT中使用
-Add new feed into "feeds.conf.default":
+更新feeds:
 
-    src-git libuwsc https://github.com/zhaojh329/libuwsc-feed.git
+    ./scripts/feeds update -a
+    ./scripts/feeds install -a
 
-for chaos_calmer(15.05)
+对于chaos_calmer(15.05), 你需要修改Makefile: feeds/packages/libs/libuwsc/Makefile
 
-    src-git libuwsc https://github.com/zhaojh329/libuwsc-feed.git;for-15.05
+    PKG_SOURCE_URL=https://github.com/zhaojh329/libuwsc.git
+    # Add the following two lines
+    PKG_SOURCE_SUBDIR:=$(PKG_NAME)-$(PKG_VERSION)
+    PKG_SOURCE:=$(PKG_NAME)-$(PKG_VERSION)-$(PKG_SOURCE_VERSION).tar.gz
+    # And comment the line below
+    #PKG_MIRROR_HASH:=4aada7e2941fb9f099869c9dc10ef6411f1c355c3b2f570011b91e42feffbfdd
 
-Install libuwsc packages:
-
-    ./scripts/feeds update libuwsc
-    ./scripts/feeds install -a -p libuwsc
-
-Select package libuwsc in menuconfig and compile new image.
+在menuconfig中选择libuwsc，然后重新编译固件。
 
     Libraries  --->
         Networking  --->
