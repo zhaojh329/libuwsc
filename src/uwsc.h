@@ -65,7 +65,8 @@ struct uwsc_client {
     struct ustream_fd sfd;
     enum client_state state;
     struct uwsc_frame frame;
-    struct uloop_timeout timeout;
+    struct uloop_timeout ping_timer;
+    bool wait_pingresp;
     enum uwsc_error_code error;
     
 #if (UWSC_SSL_SUPPORT)

@@ -30,7 +30,7 @@
 
 static void uwsc_free(struct uwsc_client *cl)
 {
-    uloop_timeout_cancel(&cl->timeout);
+    uloop_timeout_cancel(&cl->ping_timer);
     ustream_free(&cl->sfd.stream);
     shutdown(cl->sfd.fd.fd, SHUT_RDWR);
     close(cl->sfd.fd.fd);
@@ -60,6 +60,10 @@ static void dispach_message(struct uwsc_client *cl)
         break;
     case WEBSOCKET_OP_PING:
         cl->send(cl, frame->payload, frame->payloadlen, WEBSOCKET_OP_PONG);
+        break;
+    case WEBSOCKET_OP_PONG:
+        cl->wait_pingresp = false;
+        uloop_timeout_set(&cl->ping_timer, UWSC_PING_INTERVAL * 1000);
         break;
     case WEBSOCKET_OP_CLOSE:
         uwsc_error(cl, 0);
@@ -247,8 +251,7 @@ static void __uwsc_notify_read(struct uwsc_client *cl, struct ustream *s)
             if (cl->onopen)
                 cl->onopen(cl);
 
-            uloop_timeout_set(&cl->timeout, UWSC_PING_INTERVAL * 1000);
-            
+            uloop_timeout_set(&cl->ping_timer, UWSC_PING_INTERVAL * 1000);
             cl->state = CLIENT_STATE_MESSAGE;
         } else if (cl->state == CLIENT_STATE_MESSAGE) {
             if (!parse_frame(cl, (uint8_t *)data, len))
@@ -396,6 +399,9 @@ static int uwsc_send(struct uwsc_client *cl, const void *data, int len, enum web
 
     free(buf);
 
+    if (op == WEBSOCKET_OP_CLOSE)
+        uwsc_error(cl, 0);
+
     return 0;
 }
 
@@ -430,13 +436,17 @@ static void uwsc_handshake(struct uwsc_client *cl, const char *host, int port, c
 
 static void uwsc_ping_cb(struct uloop_timeout *timeout)
 {
-    struct uwsc_client *cl = container_of(timeout, struct uwsc_client, timeout);
+    struct uwsc_client *cl = container_of(timeout, struct uwsc_client, ping_timer);
 
-    if (cl->state > CLIENT_STATE_MESSAGE)
+    if (cl->wait_pingresp) {
+        uwsc_log_err("Ping server, no response\n");
+        cl->send(cl, NULL, 0, WEBSOCKET_OP_CLOSE);
         return;
+    }
 
     cl->ping(cl);
-    uloop_timeout_set(&cl->timeout, UWSC_PING_INTERVAL * 1000);
+    cl->wait_pingresp = true;
+    uloop_timeout_set(&cl->ping_timer, 1 * 1000);
 }
 
 struct uwsc_client *uwsc_new_ssl(const char *url, const char *ca_crt_file, bool verify)
@@ -468,7 +478,7 @@ struct uwsc_client *uwsc_new_ssl(const char *url, const char *ca_crt_file, bool 
     cl->free = uwsc_free;
     cl->send = uwsc_send;
     cl->ping = uwsc_ping;
-    cl->timeout.cb = uwsc_ping_cb;
+    cl->ping_timer.cb = uwsc_ping_cb;
     ustream_fd_init(&cl->sfd, sock);
 
     if (ssl) {
