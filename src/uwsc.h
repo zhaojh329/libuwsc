@@ -34,11 +34,12 @@ enum uwsc_error_code {
     UWSC_ERROR_INVALID_HEADER,
     UWSC_ERROR_SSL,
     UWSC_ERROR_SSL_INVALID_CERT,
-    UWSC_ERROR_SSL_CN_MISMATCH
+    UWSC_ERROR_SSL_CN_MISMATCH,
+    UWSC_ERROR_SERVER_MASKED,
+    UWSC_ERROR_NOMEM
 };
 
 enum client_state {
-    CLIENT_STATE_INIT,
     CLIENT_STATE_HANDSHAKE,
     CLIENT_STATE_MESSAGE
 };
@@ -55,8 +56,8 @@ enum websocket_op {
 struct uwsc_frame {
     bool fragmented;
     uint8_t opcode;
-    uint64_t payload_len;
-    char *payload;
+    uint64_t payloadlen;
+    uint8_t *payload;
 };
 
 struct uwsc_client {
@@ -75,10 +76,10 @@ struct uwsc_client {
 #endif
 
     void (*onopen)(struct uwsc_client *cl);
-    void (*onmessage)(struct uwsc_client *cl, char *data, uint64_t len, enum websocket_op op);
+    void (*onmessage)(struct uwsc_client *cl, void *data, uint64_t len, enum websocket_op op);
     void (*onerror)(struct uwsc_client *cl);
     void (*onclose)(struct uwsc_client *cl);
-    int (*send)(struct uwsc_client *cl, char *data, int len, enum websocket_op op);
+    int (*send)(struct uwsc_client *cl, const void *data, int len, enum websocket_op op);
     void (*ping)(struct uwsc_client *cl);
     void (*free)(struct uwsc_client *cl);
 };

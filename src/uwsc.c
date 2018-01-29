@@ -56,10 +56,10 @@ static void dispach_message(struct uwsc_client *cl)
     case WEBSOCKET_OP_TEXT:
     case WEBSOCKET_OP_BINARY:
         if (cl->onmessage)
-            cl->onmessage(cl, frame->payload, frame->payload_len, frame->opcode);
+            cl->onmessage(cl, frame->payload, frame->payloadlen, frame->opcode);
         break;
     case WEBSOCKET_OP_PING:
-        cl->send(cl, frame->payload, frame->payload_len, WEBSOCKET_OP_PONG);
+        cl->send(cl, frame->payload, frame->payloadlen, WEBSOCKET_OP_PONG);
         break;
     case WEBSOCKET_OP_CLOSE:
         uwsc_error(cl, 0);
@@ -69,40 +69,54 @@ static void dispach_message(struct uwsc_client *cl)
     }
 }
 
-static void parse_frame(struct uwsc_client *cl, char *data)
+static bool parse_frame(struct uwsc_client *cl, uint8_t *data, uint64_t len)
 {
     struct uwsc_frame *frame = &cl->frame;
     uint8_t fin, opcode;
-    uint64_t payload_len;
-    char *payload;
+    uint64_t payloadlen;
+    int payloadlen_size = 1;
+    uint8_t *payload;
     
+    if (len < 2)
+        return false;
+
     fin = (data[0] & 0x80) ? 1 : 0;
     opcode = data[0] & 0x0F;
 
     if (data[1] & 0x80) {
         uwsc_log_err("Masked error");
         cl->send(cl, NULL, 0, WEBSOCKET_OP_CLOSE);
-        return;
+        cl->error = UWSC_ERROR_SERVER_MASKED;
+        return false;
     }
 
-    payload_len = data[1] & 0x7F;
+    payloadlen = data[1] & 0x7F;
     payload = data + 2;
 
-    switch (payload_len) {
+    switch (payloadlen) {
     case 126:
-        payload_len = ntohs(*(uint16_t *)&data[2]);
+        if (len < 4)
+            return false;
+        payloadlen = ntohs(*(uint16_t *)&data[2]);
         payload += 2;
+        payloadlen_size += 2;
         break;
     case 127:
-        payload_len = (((uint64_t)ntohl(*(uint32_t *)&data[2])) << 32) + ntohl(*(uint32_t *)&data[6]);
+        if (len < 10)
+            return false;
+        payloadlen = (((uint64_t)ntohl(*(uint32_t *)&data[2])) << 32) + ntohl(*(uint32_t *)&data[6]);
         payload += 8;
+        payloadlen_size += 8;
         break;
     default:
         break;
     }
 
+    if (len < 1 + payloadlen_size + payloadlen)
+        return false;
+
     if (frame->fragmented) {
-        int new_len = frame->payload_len + payload_len;
+        int new_len = frame->payloadlen + payloadlen;
 
         if (fin && opcode == WEBSOCKET_OP_TEXT)
             new_len += 1;
@@ -111,21 +125,22 @@ static void parse_frame(struct uwsc_client *cl, char *data)
         if (!frame->payload) {
             uwsc_log_err("No mem");
             cl->send(cl, NULL, 0, WEBSOCKET_OP_CLOSE);
-            return;
+            cl->error = UWSC_ERROR_NOMEM;
+            return false;
         }
 
-        memcpy(frame->payload + frame->payload_len, payload, payload_len);
-        frame->payload[payload_len - 1] = 0;
-        frame->payload_len = new_len;
+        memcpy(frame->payload + frame->payloadlen, payload, payloadlen);
+        frame->payload[payloadlen - 1] = 0;
+        frame->payloadlen = new_len;
     } else {
         frame->opcode = opcode;
-        frame->payload_len = payload_len;
+        frame->payloadlen = payloadlen;
         frame->payload = payload;
 
         if (!fin) {
             frame->fragmented = true;
-            frame->payload = malloc(payload_len);
-            memcpy(frame->payload, payload, payload_len);
+            frame->payload = malloc(payloadlen);
+            memcpy(frame->payload, payload, payloadlen);
         }
     }
 
@@ -136,6 +151,8 @@ static void parse_frame(struct uwsc_client *cl, char *data)
             free(frame->payload);
         }
     }
+    ustream_consume(cl->us, 1 + payloadlen_size + payloadlen);
+    return true;
 }
 
 static int parse_header(struct uwsc_client *cl, char *data)
@@ -179,74 +196,71 @@ static int parse_header(struct uwsc_client *cl, char *data)
     return 0;
 }
 
-static void uwsc_ping_cb(struct uloop_timeout *timeout)
-{
-    struct uwsc_client *cl = container_of(timeout, struct uwsc_client, timeout);
-
-    if (cl->state > CLIENT_STATE_MESSAGE)
-        return;
-
-    cl->ping(cl);
-    uloop_timeout_set(&cl->timeout, UWSC_PING_INTERVAL * 1000);
-}
-
 static void __uwsc_notify_read(struct uwsc_client *cl, struct ustream *s)
 {
     char *data;
     int len;
 
-    data = ustream_get_read_buf(s, &len);
-    if (!data || !len)
-        return;
-
-    if (cl->state == CLIENT_STATE_HANDSHAKE) {
-        char *p, *version, *status_code, *summary;
-
-        p = strstr(data, "\r\n\r\n");
-        if (!p)
+    do {
+        data = ustream_get_read_buf(s, &len);
+        if (!data || !len)
             return;
-        
-        p[2] = 0;
 
-        version = strtok(data, " ");
-        status_code = strtok(NULL, " ");
-        summary = strtok(NULL, "\r\n");
+        if (cl->state == CLIENT_STATE_HANDSHAKE) {
+            char *p, *version, *status_code, *summary;
 
-        if (!version || strcmp(version, "HTTP/1.1")) {
-            uwsc_log_err("Invalid version");
-            goto err;
+            p = strstr(data, "\r\n\r\n");
+            if (!p)
+                return;
+            
+            p[2] = 0;
+
+            version = strtok(data, " ");
+            status_code = strtok(NULL, " ");
+            summary = strtok(NULL, "\r\n");
+
+            if (!version || strcmp(version, "HTTP/1.1")) {
+                uwsc_log_err("Invalid version");
+                cl->error = UWSC_ERROR_INVALID_HEADER;
+                break;
+            }
+
+            if (!status_code || atoi(status_code) != 101) {
+                uwsc_log_err("Invalid status code");
+                cl->error = UWSC_ERROR_INVALID_HEADER;
+                break;
+            }
+
+            if (!summary) {
+                uwsc_log_err("Invalid summary");
+                cl->error = UWSC_ERROR_INVALID_HEADER;
+                break;
+            }
+
+            if (parse_header(cl, data)) {
+                cl->error = UWSC_ERROR_INVALID_HEADER;
+                break;
+            }
+
+            ustream_consume(cl->us, p + 4 - data);
+
+            if (cl->onopen)
+                cl->onopen(cl);
+
+            uloop_timeout_set(&cl->timeout, UWSC_PING_INTERVAL * 1000);
+            
+            cl->state = CLIENT_STATE_MESSAGE;
+        } else if (cl->state == CLIENT_STATE_MESSAGE) {
+            if (!parse_frame(cl, (uint8_t *)data, len))
+                break;
+        } else {
+            uwsc_log_err("Invalid state\n");
         }
+       
+    } while(!cl->error);
 
-        if (!status_code || atoi(status_code) != 101) {
-            uwsc_log_err("Invalid status code");
-            goto err;
-        }
-
-        if (!summary) {
-            uwsc_log_err("Invalid summary");
-            goto err;
-        }
-
-        if (parse_header(cl, data))
-            goto err;
-
-        ustream_consume(cl->us, p + 4 - data);
-
-        if (cl->onopen)
-            cl->onopen(cl);
-
-        cl->timeout.cb = uwsc_ping_cb;
-        uloop_timeout_set(&cl->timeout, UWSC_PING_INTERVAL * 1000);
-        
-        cl->state = CLIENT_STATE_MESSAGE;
-    } else if (cl->state == CLIENT_STATE_MESSAGE) {
-        parse_frame(cl, data);
-        ustream_consume(cl->us, len);
-    }
-    return;
-
-err:
-    uwsc_error(cl, UWSC_ERROR_INVALID_HEADER);
+    if (cl->error)
+        uwsc_error(cl, cl->error);
 }
 
 static inline void uwsc_notify_read(struct ustream *s, int bytes)
@@ -326,7 +340,7 @@ static void uwsc_ssl_notify_connected(struct ustream_ssl *ssl)
 
 #endif
 
-static int uwsc_send(struct uwsc_client *cl, char *data, int len, enum websocket_op op)
+static int uwsc_send(struct uwsc_client *cl, const void *data, int len, enum websocket_op op)
 {
     char *buf, *p;
     uint8_t mask_key[4];
@@ -412,8 +426,17 @@ static void uwsc_handshake(struct uwsc_client *cl, const char *host, int port, c
         ustream_printf(cl->us, ":%d\r\n", port);
     
     ustream_printf(cl->us, "\r\n");
+}
 
-    cl->state = CLIENT_STATE_HANDSHAKE;
+static void uwsc_ping_cb(struct uloop_timeout *timeout)
+{
+    struct uwsc_client *cl = container_of(timeout, struct uwsc_client, timeout);
+
+    if (cl->state > CLIENT_STATE_MESSAGE)
+        return;
+
+    cl->ping(cl);
+    uloop_timeout_set(&cl->timeout, UWSC_PING_INTERVAL * 1000);
 }
 
 struct uwsc_client *uwsc_new_ssl(const char *url, const char *ca_crt_file, bool verify)
@@ -445,7 +468,7 @@ struct uwsc_client *uwsc_new_ssl(const char *url, const char *ca_crt_file, bool 
     cl->free = uwsc_free;
     cl->send = uwsc_send;
     cl->ping = uwsc_ping;
-
+    cl->timeout.cb = uwsc_ping_cb;
     ustream_fd_init(&cl->sfd, sock);
 
     if (ssl) {

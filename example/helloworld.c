@@ -47,18 +47,19 @@ static void uwsc_onopen(struct uwsc_client *cl)
     uloop_fd_add(&fd, ULOOP_READ);
 }
 
-static void uwsc_onmessage(struct uwsc_client *cl, char *data, uint64_t len, enum websocket_op op)
+static void uwsc_onmessage(struct uwsc_client *cl, void *data, uint64_t len, enum websocket_op op)
 {
     if (op == WEBSOCKET_OP_BINARY) {
         uint64_t i;
+        uint8_t *p = data;
         for (i = 0; i < len; i++) {
-            printf("%02hhX ", data[i]);
+            printf("%02hhX ", p[i]);
             if (i % 16 == 0 && i > 0)
                 puts("");
         }
         puts("");
     } else if (op == WEBSOCKET_OP_TEXT) {
-        printf("recv:[%s]\n", data);
+        printf("recv:[%s]\n", (char *)data);
     }
 }
 
