@@ -80,7 +80,7 @@ struct uwsc_client {
     void (*onmessage)(struct uwsc_client *cl, void *data, uint64_t len, enum websocket_op op);
     void (*onerror)(struct uwsc_client *cl);
     void (*onclose)(struct uwsc_client *cl);
-    int (*send)(struct uwsc_client *cl, const void *data, int len, enum websocket_op op);
+    int (*send)(struct uwsc_client *cl, void *data, int len, enum websocket_op op);
     void (*ping)(struct uwsc_client *cl);
     void (*free)(struct uwsc_client *cl);
 };

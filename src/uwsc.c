@@ -343,38 +343,36 @@ static void uwsc_ssl_notify_connected(struct ustream_ssl *ssl)
 
 #endif
 
-static int uwsc_send(struct uwsc_client *cl, const void *data, int len, enum websocket_op op)
+static int uwsc_send(struct uwsc_client *cl, void *data, int len, enum websocket_op op)
 {
-    char *buf, *p;
+    char *head, *p;
     uint8_t mask_key[4];
-    int i;
-    int frame_size = 0;
+    int i, head_size;
 
-    if (len > INT_MAX - 8) {
+    if (len > INT_MAX - 14) {
         uwsc_log_err("Payload too big");
         return -1;
     }
 
-    buf = malloc(len + 8);
-    if (!buf) {
+    head = malloc(14);
+    if (!head) {
         uwsc_log_err("NO mem");
         return -1;
     }
 
-    p = buf;
-
     get_nonce(mask_key, 4);
 
+    p = head;
     *p++ = 0x80 | op;   /* FIN and opcode */
 
     if (len < 126) {
         *p++ = 0x80 | len;
-        frame_size = 6 + len;
+        head_size = 6;
     } else if (len < 0x10000) {
         *p++ = 0x80 | 126;
         *p++ = (len >> 8) & 0xFF;
         *p++ = len & 0xFF;
-        frame_size = 8 + len;
+        head_size = 8;
     } else {
         *p++ = 0x80 | 127;
         *p++ = 0;
@@ -385,19 +383,18 @@ static int uwsc_send(struct uwsc_client *cl, const void *data, int len, enum web
         *p++ = (len >> 16) & 0xFF;
         *p++ = (len >> 8) & 0xFF;
         *p++ = len & 0xFF;
-        frame_size = 14 + len;
+        head_size = 14;
     }
 
     memcpy(p, mask_key, 4);
-    p += 4;
-    memcpy(p, data, len);
+    p = data;
     for (i = 0; i < len; i++) {
         p[i] ^= mask_key[i % 4];
     }
 
-    ustream_write(cl->us, buf, frame_size, false);
-
-    free(buf);
+    ustream_write(cl->us, head, head_size, false);
+    ustream_write(cl->us, data, len, false);
+    free(head);
 
     if (op == WEBSOCKET_OP_CLOSE)
         uwsc_error(cl, 0);
