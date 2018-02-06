@@ -27,8 +27,6 @@
 #include <libubox/ustream-ssl.h>
 #endif
 
-#define UWSC_PING_INTERVAL  30
-
 enum uwsc_error_code {
     UWSC_ERROR_WRITE,
     UWSC_ERROR_INVALID_HEADER,
@@ -67,6 +65,7 @@ struct uwsc_client {
     struct uwsc_frame frame;
     struct uloop_timeout ping_timer;
     bool wait_pingresp;
+    int ping_interval;
     enum uwsc_error_code error;
     
 #if (UWSC_SSL_SUPPORT)
@@ -77,6 +76,7 @@ struct uwsc_client {
 #endif
 
     void (*onopen)(struct uwsc_client *cl);
+    void (*set_ping_interval)(struct uwsc_client *cl, int interval);
     void (*onmessage)(struct uwsc_client *cl, void *data, uint64_t len, enum websocket_op op);
     void (*onerror)(struct uwsc_client *cl);
     void (*onclose)(struct uwsc_client *cl);

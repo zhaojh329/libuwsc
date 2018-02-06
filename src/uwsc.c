@@ -63,7 +63,7 @@ static void dispach_message(struct uwsc_client *cl)
         break;
     case WEBSOCKET_OP_PONG:
         cl->wait_pingresp = false;
-        uloop_timeout_set(&cl->ping_timer, UWSC_PING_INTERVAL * 1000);
+        uloop_timeout_set(&cl->ping_timer, cl->ping_interval * 1000);
         break;
     case WEBSOCKET_OP_CLOSE:
         uwsc_error(cl, 0);
@@ -251,7 +251,6 @@ static void __uwsc_notify_read(struct uwsc_client *cl, struct ustream *s)
             if (cl->onopen)
                 cl->onopen(cl);
 
-            uloop_timeout_set(&cl->ping_timer, UWSC_PING_INTERVAL * 1000);
             cl->state = CLIENT_STATE_MESSAGE;
         } else if (cl->state == CLIENT_STATE_MESSAGE) {
             if (!parse_frame(cl, (uint8_t *)data, len))
@@ -446,6 +445,16 @@ static void uwsc_ping_cb(struct uloop_timeout *timeout)
     uloop_timeout_set(&cl->ping_timer, 1 * 1000);
 }
 
+static void uwsc_set_ping_interval(struct uwsc_client *cl, int interval)
+{
+    cl->ping_interval = interval;
+
+    uloop_timeout_cancel(&cl->ping_timer);
+
+    if (interval > 0)
+        uloop_timeout_set(&cl->ping_timer, interval * 1000);
+}
+
 struct uwsc_client *uwsc_new_ssl(const char *url, const char *ca_crt_file, bool verify)
 {
     struct uwsc_client *cl = NULL;
@@ -475,6 +484,7 @@ struct uwsc_client *uwsc_new_ssl(const char *url, const char *ca_crt_file, bool 
     cl->free = uwsc_free;
     cl->send = uwsc_send;
     cl->ping = uwsc_ping;
+    cl->set_ping_interval = uwsc_set_ping_interval;
     cl->ping_timer.cb = uwsc_ping_cb;
     ustream_fd_init(&cl->sfd, sock);
 
