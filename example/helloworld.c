@@ -34,6 +34,8 @@ void fd_handler(struct uloop_fd *u, unsigned int events)
     if (n > 1) {
         buf[n - 1] = 0;
         printf("You input:[%s]\n", buf);
+
+        /* Note: the buf to be sent will be modified by the send function */
         gcl->send(gcl, buf, strlen(buf) + 1, WEBSOCKET_OP_TEXT);
     }
 }
@@ -45,6 +47,9 @@ static void uwsc_onopen(struct uwsc_client *cl)
     fd.fd = STDIN_FILENO;
     fd.cb = fd_handler;
     uloop_fd_add(&fd, ULOOP_READ);
+
+    /* Send Ping per 10s */
+    cl->set_ping_interval(cl, 10);
 }
 
 static void uwsc_onmessage(struct uwsc_client *cl, void *data, uint64_t len, enum websocket_op op)
