@@ -42,29 +42,12 @@
 
 	~/libuwsc/build$ make && sudo make install
 
-# 如何在OpenWRT中使用
-更新feeds:
+# 安装到OpenWRT
+    opkg update
+    opkg list | grep libuwsc
+    opkg install libuwsc-nossl
 
-    ./scripts/feeds update -a
-    ./scripts/feeds install -a
-
-对于chaos_calmer(15.05), 你需要修改Makefile: feeds/packages/libs/libuwsc/Makefile
-
-    PKG_SOURCE_URL=https://github.com/zhaojh329/libuwsc.git
-    # Add the following two lines
-    PKG_SOURCE_SUBDIR:=$(PKG_NAME)-$(PKG_VERSION)
-    PKG_SOURCE:=$(PKG_NAME)-$(PKG_VERSION)-$(PKG_SOURCE_VERSION).tar.gz
-    # And comment the line below
-    #PKG_MIRROR_HASH:=4aada7e2941fb9f099869c9dc10ef6411f1c355c3b2f570011b91e42feffbfdd
-
-在menuconfig中选择libuwsc，然后重新编译固件。
-
-    Libraries  --->
-        Networking  --->
-            <*> libuwsc-mbedtls.................................... libuwsc (mbedtls)
-            < > libuwsc-nossl....................................... libuwsc (NO SSL)
-            < > libuwsc-openssl.................................... libuwsc (openssl)
-            < > libuwsc-wolfssl.................................... libuwsc (wolfssl)
+如果安装失败，你可以[自己编译](/BUILDOPENWRT_ZH.md)。
 
 # 贡献代码
 如果你想帮助[libuwsc](https://github.com/zhaojh329/libuwsc)变得更好，请参考

@@ -41,29 +41,12 @@ See which configuration are supported
 
 	~/libuwsc/build$ make && sudo make install
 	
-# How to use on OpenWRT
-Update feeds:
+# Install on OpenWrt
+    opkg update
+    opkg list | grep libuwsc
+    opkg install libuwsc-nossl
 
-    ./scripts/feeds update -a
-    ./scripts/feeds install -a
-
-For chaos_calmer(15.05), you need to modify the Makefile: feeds/packages/libs/libuwsc/Makefile
-
-    PKG_SOURCE_URL=https://github.com/zhaojh329/libuwsc.git
-    # Add the following two lines
-    PKG_SOURCE_SUBDIR:=$(PKG_NAME)-$(PKG_VERSION)
-    PKG_SOURCE:=$(PKG_NAME)-$(PKG_VERSION)-$(PKG_SOURCE_VERSION).tar.gz
-    # And comment the line below
-    #PKG_MIRROR_HASH:=4aada7e2941fb9f099869c9dc10ef6411f1c355c3b2f570011b91e42feffbfdd
-
-Select libuwsc in menuconfig and compile new image.
-
-    Libraries  --->
-        Networking  --->
-            <*> libuwsc-mbedtls.................................... libuwsc (mbedtls)
-            < > libuwsc-nossl....................................... libuwsc (NO SSL)
-            < > libuwsc-openssl.................................... libuwsc (openssl)
-            < > libuwsc-wolfssl.................................... libuwsc (wolfssl)
+If the install command fails, you can [compile it yourself](/BUILDOPENWRT.md).
 
 # Contributing
 If you would like to help making [libuwsc](https://github.com/zhaojh329/libuwsc) better,
