@@ -51,3 +51,7 @@ If the install command fails, you can [compile it yourself](/BUILDOPENWRT.md).
 # Contributing
 If you would like to help making [libuwsc](https://github.com/zhaojh329/libuwsc) better,
 see the [CONTRIBUTING.md](https://github.com/zhaojh329/libuwsc/blob/master/CONTRIBUTING.md) file.
+
+# QQ group: 153530783
+
+# If the project is helpful to you, please do not hesitate to star. Thank you!
