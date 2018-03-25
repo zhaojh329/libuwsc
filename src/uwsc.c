@@ -534,7 +534,7 @@ struct uwsc_client *uwsc_new_ssl(const char *url, const char *ca_crt_file, bool 
         cl->ssl_ops->set_peer_cn(&cl->ussl, host);
 #else
         uwsc_log_err("SSL support not available");
-        return NULL;
+        goto err;
 #endif
     } else {
         cl->us = &cl->sfd.stream;
@@ -557,3 +557,4 @@ err:
 
     return NULL;    
 }
+
