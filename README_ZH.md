@@ -31,6 +31,16 @@
 * [CyaSSl(wolfssl)] - 如果你选择wolfssl作为你的SSL后端
 * [openssl] - 如果你选择openssl作为你的SSL后端
 
+# 安装依赖软件
+
+    sudo apt install libjson-c-dev
+
+    git clone https://git.openwrt.org/project/libubox.git
+    cd libubox && cmake -DBUILD_LUA=OFF . && sudo make install
+
+    git clone https://git.openwrt.org/project/ustream-ssl.git
+    cd ustream-ssl && cmake . && sudo make install
+
 # 配置
 查看支持哪些配置选项
 
@@ -43,6 +53,7 @@
 	~/libuwsc/build$ make && sudo make install
 
 # 安装到OpenWRT
+
     opkg update
     opkg list | grep libuwsc
     opkg install libuwsc-nossl

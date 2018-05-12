@@ -31,8 +31,19 @@ A Lightweight and fully asynchronous WebSocket client C library based on libubox
 * [CyaSSl(wolfssl)] - If you choose wolfssl as your SSL backend
 * [openssl] - If you choose openssl as your SSL backend
 
+# Install dependent packages
+
+    sudo apt install libjson-c-dev
+
+    git clone https://git.openwrt.org/project/libubox.git
+    cd libubox && cmake -DBUILD_LUA=OFF . && sudo make install
+
+    git clone https://git.openwrt.org/project/ustream-ssl.git
+    cd ustream-ssl && cmake . && sudo make install
+
 # Configure
 See which configuration are supported
+
 	~/libuwsc/$ mkdir build && cd build
 	~/libuwsc/build$ cmake .. -L
 	~/libuwsc/build$ cmake .. -LH
@@ -42,6 +53,7 @@ See which configuration are supported
 	~/libuwsc/build$ make && sudo make install
 	
 # Install on OpenWrt
+
     opkg update
     opkg list | grep libuwsc
     opkg install libuwsc-nossl
