@@ -30,7 +30,7 @@
 #endif
 
 enum uwsc_error_code {
-    UWSC_ERROR_WRITE,
+    UWSC_ERROR_WRITE = 1,
     UWSC_ERROR_INVALID_HEADER,
     UWSC_ERROR_SSL,
     UWSC_ERROR_SSL_INVALID_CERT,
