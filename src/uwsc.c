@@ -37,6 +37,7 @@ static void uwsc_free(struct uwsc_client *cl)
     shutdown(cl->sfd.fd.fd, SHUT_RDWR);
     close(cl->sfd.fd.fd);
 #if (UWSC_SSL_SUPPORT)
+    ustream_free(&cl->ussl.stream);
     if (cl->ssl_ops && cl->ssl_ctx)
         cl->ssl_ops->context_free(cl->ssl_ctx);
 #endif
