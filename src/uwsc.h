@@ -23,6 +23,7 @@
 #include <libubox/uloop.h>
 #include <libubox/ustream.h>
 
+#include "log.h"
 #include "config.h"
 
 #if (UWSC_SSL_SUPPORT)

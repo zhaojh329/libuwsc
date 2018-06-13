@@ -22,7 +22,6 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
-#include <libubox/ulog.h>
 
 struct uwsc_client *gcl;
 struct uloop_fd fd;
@@ -44,7 +43,7 @@ void fd_handler(struct uloop_fd *u, unsigned int events)
 
 static void uwsc_onopen(struct uwsc_client *cl)
 {
-    ULOG_INFO("onopen\n");
+    uwsc_log_info("onopen\n");
 
     fd.fd = STDIN_FILENO;
     fd.cb = fd_handler;
@@ -72,12 +71,12 @@ static void uwsc_onmessage(struct uwsc_client *cl, void *data, uint64_t len, enu
 
 static void uwsc_onerror(struct uwsc_client *cl)
 {
-    ULOG_INFO("onerror:%d\n", cl->error);
+    uwsc_log_info("onerror:%d\n", cl->error);
 }
 
 static void uwsc_onclose(struct uwsc_client *cl)
 {
-    ULOG_INFO("onclose\n");
+    uwsc_log_info("onclose\n");
     uloop_end();
 }
 
@@ -121,7 +120,7 @@ int main(int argc, char **argv)
     }
 
     if (!verbose)
-        ulog_threshold(LOG_ERR);
+        uwsc_log_threshold(LOG_ERR);
 
     uloop_init();
 

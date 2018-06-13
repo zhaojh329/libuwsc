@@ -20,9 +20,13 @@
 #ifndef _LOG_H
 #define _LOG_H
 
+#include <string.h>
+
 #include <libubox/ulog.h>
 
 #define __FILENAME__ (strrchr(__FILE__, '/') ? strrchr(__FILE__, '/') + 1 : __FILE__)
+
+#define uwsc_log_threshold(priority) ulog_threshold(priority)
 
 /*
  * Use the syslog output log and include the name and number of rows at the call
