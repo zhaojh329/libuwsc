@@ -78,19 +78,22 @@ static void dispach_message(struct uwsc_client *cl)
     }
 }
 
-static bool parse_frame(struct uwsc_client *cl, uint8_t *data, uint64_t len)
+static bool parse_header_len(struct uwsc_client *cl, uint8_t *data, uint64_t len,
+    uint64_t *payloadlen, int *payloadlen_size)
 {
     struct uwsc_frame *frame = &cl->frame;
-    uint8_t fin, opcode;
-    uint64_t payloadlen;
-    int payloadlen_size = 1;
-    uint8_t *payload;
-    
+    bool fin;
     if (len < 2)
         return false;
 
-    fin = (data[0] & 0x80) ? 1 : 0;
-    opcode = data[0] & 0x0F;
+    fin = (data[0] & 0x80) ? true : false;
+    frame->opcode = data[0] & 0x0F;
+
+    if (!fin || frame->opcode == WEBSOCKET_OP_CONTINUE) {
+        uwsc_log_err("Not support fragment\n");
+        uwsc_error(cl, UWSC_ERROR_NOT_SUPPORT);
+        return false;
+    }
 
     if (data[1] & 0x80) {
         uwsc_log_err("Masked error");
@@ -98,72 +101,89 @@ static bool parse_frame(struct uwsc_client *cl, uint8_t *data, uint64_t len)
         return false;
     }
 
-    payloadlen = data[1] & 0x7F;
-    payload = data + 2;
+    *payloadlen_size = 1;
+    *payloadlen = data[1] & 0x7F;
 
-    switch (payloadlen) {
+    switch (*payloadlen) {
     case 126:
         if (len < 4)
             return false;
-        payloadlen = ntohs(*(uint16_t *)&data[2]);
-        payload += 2;
-        payloadlen_size += 2;
+        *payloadlen = ntohs(*(uint16_t *)&data[2]);
+        *payloadlen_size += 2;
         break;
     case 127:
         if (len < 10)
             return false;
-        payloadlen = (((uint64_t)ntohl(*(uint32_t *)&data[2])) << 32) + ntohl(*(uint32_t *)&data[6]);
-        payload += 8;
-        payloadlen_size += 8;
+        *payloadlen = (((uint64_t)ntohl(*(uint32_t *)&data[2])) << 32) + ntohl(*(uint32_t *)&data[6]);
+        *payloadlen_size += 8;
         break;
     default:
         break;
     }
 
-    if (len < 1 + payloadlen_size + payloadlen)
-        return false;
+    return true;
+}
 
-    if (frame->fragmented) {
-        int new_len = frame->payloadlen + payloadlen;
+static bool parse_frame(struct uwsc_client *cl, uint8_t *data, uint64_t len)
+{
+    struct uwsc_frame *frame = &cl->frame;
+    uint64_t payloadlen;
+    int payloadlen_size;
+    uint8_t *payload;
 
-        if (fin && opcode == WEBSOCKET_OP_TEXT)
-            new_len += 1;
-        
-        frame->payload = realloc(frame->payload, new_len);
-        if (!frame->payload) {
-            uwsc_log_err("No mem");
-            uwsc_error(cl, UWSC_ERROR_NOMEM);
+    if (frame->wait) {
+        uint64_t more = frame->payloadlen - frame->buffer_len;
+
+        if (more > len)
+            more = len;
+
+        memcpy(frame->payload + frame->buffer_len, data, more);
+        frame->buffer_len += more;
+
+        ustream_consume(cl->us, more);
+
+        if (frame->buffer_len < frame->payloadlen)
+            return false;
+
+        if (frame->opcode == WEBSOCKET_OP_TEXT)
+            frame->payload[frame->payloadlen] = 0;
+
+        dispach_message(cl);
+
+        free(frame->payload);
+        frame->payload = NULL;
+        frame->wait = false;
+    } else {
+        if (!parse_header_len(cl, data, len, &payloadlen, &payloadlen_size))
+            return false;
+
+        payload = data + payloadlen_size + 1;
+
+        if (len < 1 + payloadlen_size + payloadlen) {
+            if (1 + payloadlen_size + payloadlen > cl->us->r.buffer_len) {
+                frame->payload = malloc(payloadlen + 1);
+                if (!frame->payload) {
+                    uwsc_log_err("No mem");
+                    uwsc_error(cl, UWSC_ERROR_NOMEM);
+                    return false;
+                }
+
+                memcpy(frame->payload, payload, len - 1 - payloadlen_size);
+                ustream_consume(cl->us, len);
+
+                frame->wait = true;
+                frame->payloadlen = payloadlen;
+                frame->buffer_len = len - 1 - payloadlen_size;
+            }
             return false;
         }
 
-        memcpy(frame->payload + frame->payloadlen, payload, payloadlen);
-        frame->payload[payloadlen - 1] = 0;
-        frame->payloadlen = new_len;
-    } else {
-        frame->opcode = opcode;
-        frame->payloadlen = payloadlen;
         frame->payload = payload;
+        frame->payloadlen = payloadlen;
 
-        if (!fin) {
-            frame->fragmented = true;
-            frame->payload = malloc(payloadlen);
-            if (!frame->payload) {
-                uwsc_log_err("No mem");
-                uwsc_error(cl, UWSC_ERROR_NOMEM);
-                return false;
-            }
-            memcpy(frame->payload, payload, payloadlen);
-        }
-    }
-
-    if (fin) {
         dispach_message(cl);
-        if (frame->fragmented) {
-            frame->fragmented = false;
-            free(frame->payload);
-        }
+        ustream_consume(cl->us, 1 + payloadlen_size + payloadlen);
     }
-    ustream_consume(cl->us, 1 + payloadlen_size + payloadlen);
     return true;
 }
 

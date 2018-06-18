@@ -37,7 +37,8 @@ enum uwsc_error_code {
     UWSC_ERROR_SSL_INVALID_CERT,
     UWSC_ERROR_SSL_CN_MISMATCH,
     UWSC_ERROR_SERVER_MASKED,
-    UWSC_ERROR_NOMEM
+    UWSC_ERROR_NOMEM,
+    UWSC_ERROR_NOT_SUPPORT
 };
 
 enum client_state {
@@ -55,8 +56,10 @@ enum websocket_op {
 };
 
 struct uwsc_frame {
-    bool fragmented;
     uint8_t opcode;
+    bool wait;              /* Wait more data */
+    uint8_t *buffer;
+    uint64_t buffer_len;
     uint64_t payloadlen;
     uint8_t *payload;
 };
