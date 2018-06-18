@@ -22,6 +22,7 @@
 #include <limits.h>
 #include <unistd.h>
 #include <glob.h>
+#include <errno.h>
 #include <arpa/inet.h>
 #include <libubox/usock.h>
 #include <libubox/utils.h>
@@ -301,6 +302,7 @@ static inline void uwsc_notify_read(struct ustream *s, int bytes)
 
 static void __uwsc_notify_state(struct uwsc_client *cl, struct ustream *s)
 {
+    errno = 0;
 
     if (!cl->error && s->write_error)
         cl->error = UWSC_ERROR_WRITE;
