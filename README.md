@@ -6,7 +6,7 @@
 [4]: https://github.com/zhaojh329/libuwsc/pulls
 [5]: https://img.shields.io/badge/Issues-welcome-brightgreen.svg?style=plastic
 [6]: https://github.com/zhaojh329/libuwsc/issues/new
-[7]: https://img.shields.io/badge/release-2.0.3-blue.svg?style=plastic
+[7]: https://img.shields.io/badge/release-2.0.4-blue.svg?style=plastic
 [8]: https://github.com/zhaojh329/libuwsc/releases
 
 [![license][1]][2]
