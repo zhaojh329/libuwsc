@@ -147,6 +147,12 @@ static bool parse_frame(struct uwsc_client *cl, uint8_t *data, uint64_t len)
         if (!fin) {
             frame->fragmented = true;
             frame->payload = malloc(payloadlen);
+            if (!frame->payload) {
+                uwsc_log_err("No mem");
+                cl->send(cl, NULL, 0, WEBSOCKET_OP_CLOSE);
+                cl->error = UWSC_ERROR_NOMEM;
+                return false;
+            }
             memcpy(frame->payload, payload, payloadlen);
         }
     }
