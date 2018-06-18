@@ -48,6 +48,8 @@ static inline void uwsc_error(struct uwsc_client *cl, int error)
 {
     cl->us->eof = true;
     cl->error = error;
+
+    cl->send(cl, NULL, 0, WEBSOCKET_OP_CLOSE);
     ustream_state_change(cl->us);
 }
 
@@ -92,8 +94,7 @@ static bool parse_frame(struct uwsc_client *cl, uint8_t *data, uint64_t len)
 
     if (data[1] & 0x80) {
         uwsc_log_err("Masked error");
-        cl->send(cl, NULL, 0, WEBSOCKET_OP_CLOSE);
-        cl->error = UWSC_ERROR_SERVER_MASKED;
+        uwsc_error(cl, UWSC_ERROR_SERVER_MASKED);
         return false;
     }
 
@@ -131,8 +132,7 @@ static bool parse_frame(struct uwsc_client *cl, uint8_t *data, uint64_t len)
         frame->payload = realloc(frame->payload, new_len);
         if (!frame->payload) {
             uwsc_log_err("No mem");
-            cl->send(cl, NULL, 0, WEBSOCKET_OP_CLOSE);
-            cl->error = UWSC_ERROR_NOMEM;
+            uwsc_error(cl, UWSC_ERROR_NOMEM);
             return false;
         }
 
@@ -149,8 +149,7 @@ static bool parse_frame(struct uwsc_client *cl, uint8_t *data, uint64_t len)
             frame->payload = malloc(payloadlen);
             if (!frame->payload) {
                 uwsc_log_err("No mem");
-                cl->send(cl, NULL, 0, WEBSOCKET_OP_CLOSE);
-                cl->error = UWSC_ERROR_NOMEM;
+                uwsc_error(cl, UWSC_ERROR_NOMEM);
                 return false;
             }
             memcpy(frame->payload, payload, payloadlen);
