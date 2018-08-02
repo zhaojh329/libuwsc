@@ -466,7 +466,7 @@ static void uwsc_ping_cb(struct uloop_timeout *timeout)
 
     if (cl->wait_pingresp) {
         uwsc_log_err("Ping server, no response\n");
-        cl->send(cl, NULL, 0, WEBSOCKET_OP_CLOSE);
+       // cl->send(cl, NULL, 0, WEBSOCKET_OP_CLOSE);
         return;
     }
 
