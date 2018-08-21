@@ -47,8 +47,6 @@ static void uwsc_free(struct uwsc_client *cl)
 
 static inline void uwsc_error(struct uwsc_client *cl, int error)
 {
-    uwsc_log_err("uwsc_error: %i\n", error);
-    
     cl->us->eof = true;
     cl->error = error;
 
@@ -74,11 +72,10 @@ static void dispach_message(struct uwsc_client *cl)
         uloop_timeout_set(&cl->ping_timer, cl->ping_interval * 1000);
         break;
     case WEBSOCKET_OP_CLOSE:
-        uwsc_log_err("dispach_message: WEBSOCKET_OP_CLOSE\n");
-        uwsc_error(cl, 0);
+        uwsc_error(cl, UWSC_ERROR_CLOSED_BY_SERVER);
         break;
     default:
-        uwsc_log_err("dispach_message: default - %i\n", frame->opcode);
+        uwsc_log_err("dispach_message: Invalid opcode - %d\n", frame->opcode);
         break;
     }
 }
@@ -429,15 +426,11 @@ static int uwsc_send(struct uwsc_client *cl, void *data, int len, enum websocket
     ustream_write(cl->us, data, len, false);
     free(head);
 
-    //if (op == WEBSOCKET_OP_CLOSE)
-    //    uwsc_error(cl, 0);
-
     return 0;
 }
 
 static inline void uwsc_ping(struct uwsc_client *cl)
 {
-    uwsc_log_info("Ping server\n");
     cl->send(cl, NULL, 0, WEBSOCKET_OP_PING);
 }
 
@@ -470,9 +463,7 @@ static void uwsc_ping_cb(struct uloop_timeout *timeout)
     struct uwsc_client *cl = container_of(timeout, struct uwsc_client, ping_timer);
 
     if (cl->wait_pingresp) {
-        uwsc_log_err("Ping server, no response\n");
-        uwsc_error(cl, 0);
-        uwsc_log_err("Send WEBSOCKET_OP_CLOSE complete\n");
+        uwsc_error(cl, UWSC_ERROR_PING_TIMEOUT);
         return;
     }
 
@@ -591,4 +582,3 @@ err:
 
     return NULL;    
 }
-
