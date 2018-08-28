@@ -19,39 +19,56 @@
 
 #include <stdlib.h>
 #include <string.h>
-#include <limits.h>
 #include <unistd.h>
-#include <glob.h>
 #include <errno.h>
+#include <stdio.h>
+#include <time.h>
+#include <netdb.h>
 #include <arpa/inet.h>
-#include <libubox/usock.h>
-#include <libubox/utils.h>
 
+#include "ssl.h"
 #include "uwsc.h"
-#include "log.h"
+#include "sha1.h"
 #include "utils.h"
+#include "base64.h"
 
 static void uwsc_free(struct uwsc_client *cl)
 {
-    uloop_timeout_cancel(&cl->ping_timer);
-    ustream_free(&cl->sfd.stream);
-    shutdown(cl->sfd.fd.fd, SHUT_RDWR);
-    close(cl->sfd.fd.fd);
-#if (UWSC_SSL_SUPPORT)
-    ustream_free(&cl->ussl.stream);
-    if (cl->ssl_ops && cl->ssl_ctx)
-        cl->ssl_ops->context_free(cl->ssl_ctx);
+    ev_timer_stop(cl->loop, &cl->timer);
+    ev_io_stop(cl->loop, &cl->ior);
+    ev_io_stop(cl->loop, &cl->iow);
+    buffer_free(&cl->rb);
+    buffer_free(&cl->wb);
+
+#if UWSC_SSL_SUPPORT
+    uwsc_ssl_free(cl->ssl);
 #endif
-    free(cl);
+
+    if (cl->sock > 0)
+        close(cl->sock);
 }
 
-static inline void uwsc_error(struct uwsc_client *cl, int error)
+static inline void uwsc_error(struct uwsc_client *cl, int err, const char *msg)
 {
-    cl->us->eof = true;
-    cl->error = error;
+    uwsc_free(cl);
 
-    cl->send(cl, NULL, 0, WEBSOCKET_OP_CLOSE);
-    ustream_state_change(cl->us);
+    if (cl->onerror) {
+        if (!msg)
+            msg = "";
+        cl->onerror(cl, err, msg);
+    }
+}
+
+static int uwsc_send_close(struct uwsc_client *cl, int code, const char *reason)
+{
+    char buf[128] = "";
+
+    buf[1] = code & 0xFF;
+    buf[0] = (code >> 8)& 0xFF;
+
+    strncpy(&buf[2], reason, sizeof(buf) - 3);
+
+    return cl->send(cl, buf, strlen(buf + 2) + 2, UWSC_OP_CLOSE);
 }
 
 static void dispach_message(struct uwsc_client *cl)
@@ -59,47 +76,66 @@ static void dispach_message(struct uwsc_client *cl)
     struct uwsc_frame *frame = &cl->frame;
 
     switch (frame->opcode) {
-    case WEBSOCKET_OP_TEXT:
-    case WEBSOCKET_OP_BINARY:
+    case UWSC_OP_TEXT:
+    case UWSC_OP_BINARY:
         if (cl->onmessage)
-            cl->onmessage(cl, frame->payload, frame->payloadlen, frame->opcode);
+            cl->onmessage(cl, frame->payload, frame->payloadlen, frame->opcode == UWSC_OP_BINARY);
         break;
-    case WEBSOCKET_OP_PING:
-        cl->send(cl, frame->payload, frame->payloadlen, WEBSOCKET_OP_PONG);
+
+    case UWSC_OP_PING:
+        cl->send(cl, frame->payload, frame->payloadlen, UWSC_OP_PONG);
         break;
-    case WEBSOCKET_OP_PONG:
-        cl->wait_pingresp = false;
-        uloop_timeout_set(&cl->ping_timer, cl->ping_interval * 1000);
+
+    case UWSC_OP_PONG:
+        cl->wait_pong = false;
         break;
-    case WEBSOCKET_OP_CLOSE:
-        uwsc_error(cl, UWSC_ERROR_CLOSED_BY_SERVER);
+
+    case UWSC_OP_CLOSE:
+            if (cl->onclose) {
+                int code = buffer_pull_u16(&cl->rb);
+                char reason[128] = "";
+
+                frame->payloadlen -= 2;
+                buffer_pull(&cl->rb, reason, frame->payloadlen);
+                cl->onclose(cl, ntohs(code), reason);
+            }
+
+            uwsc_free(cl);
         break;
+
     default:
-        uwsc_log_err("dispach_message: Invalid opcode - %d\n", frame->opcode);
+        uwsc_log_err("unknown opcode - %d\n", frame->opcode);
+        uwsc_send_close(cl, UWSC_CLOSE_STATUS_PROTOCOL_ERR, "unknown opcode");
         break;
+    }
+
+    if (frame->payloadlen > 0) {
+        buffer_pull(&cl->rb, NULL, frame->payloadlen);
+        frame->payloadlen = 0;
     }
 }
 
-static bool parse_header_len(struct uwsc_client *cl, uint8_t *data, uint64_t len,
-    uint64_t *payloadlen, int *payloadlen_size)
+static bool parse_header_len(struct uwsc_client *cl, uint64_t *payloadlen,
+    int *payloadlen_size)
 {
     struct uwsc_frame *frame = &cl->frame;
+    struct buffer *rb = &cl->rb;
+    uint8_t *data = buffer_data(rb);
     bool fin;
-    if (len < 2)
+
+    if (buffer_length(rb) < 2)
         return false;
 
     fin = (data[0] & 0x80) ? true : false;
     frame->opcode = data[0] & 0x0F;
 
-    if (!fin || frame->opcode == WEBSOCKET_OP_CONTINUE) {
-        uwsc_log_err("Not support fragment\n");
-        uwsc_error(cl, UWSC_ERROR_NOT_SUPPORT);
+    if (!fin || frame->opcode == UWSC_OP_CONTINUE) {
+        uwsc_error(cl, UWSC_ERROR_NOT_SUPPORT, "Not support fragment");
         return false;
     }
 
     if (data[1] & 0x80) {
-        uwsc_log_err("Masked error");
-        uwsc_error(cl, UWSC_ERROR_SERVER_MASKED);
+        uwsc_error(cl, UWSC_ERROR_SERVER_MASKED, "Masked error");
         return false;
     }
 
@@ -108,16 +144,14 @@ static bool parse_header_len(struct uwsc_client *cl, uint8_t *data, uint64_t len
 
     switch (*payloadlen) {
     case 126:
-        if (len < 4)
+        if (buffer_length(rb) < 4)
             return false;
         *payloadlen = ntohs(*(uint16_t *)&data[2]);
         *payloadlen_size += 2;
         break;
     case 127:
-        if (len < 10)
-            return false;
-        *payloadlen = (((uint64_t)ntohl(*(uint32_t *)&data[2])) << 32) + ntohl(*(uint32_t *)&data[6]);
-        *payloadlen_size += 8;
+        uwsc_error(cl, UWSC_ERROR_NOT_SUPPORT, "Payload too large");
+        uwsc_send_close(cl, UWSC_CLOSE_STATUS_MESSAGE_TOO_LARGE, "");
         break;
     default:
         break;
@@ -126,70 +160,31 @@ static bool parse_header_len(struct uwsc_client *cl, uint8_t *data, uint64_t len
     return true;
 }
 
-static bool parse_frame(struct uwsc_client *cl, uint8_t *data, uint64_t len)
+static bool parse_frame(struct uwsc_client *cl)
 {
     struct uwsc_frame *frame = &cl->frame;
+    struct buffer *rb = &cl->rb;
     uint64_t payloadlen;
     int payloadlen_size;
-    uint8_t *payload;
 
-    if (frame->wait) {
-        uint64_t more = frame->payloadlen - frame->buffer_len;
+    if (!parse_header_len(cl, &payloadlen, &payloadlen_size))
+        return false;
 
-        if (more > len)
-            more = len;
+    if (buffer_length(rb) < 1 + payloadlen_size + payloadlen)
+        return false;
 
-        memcpy(frame->payload + frame->buffer_len, data, more);
-        frame->buffer_len += more;
+    frame->payloadlen = payloadlen;
 
-        ustream_consume(cl->us, more);
+    buffer_pull(rb, NULL, payloadlen_size + 1);
 
-        if (frame->buffer_len < frame->payloadlen)
-            return false;
+    frame->payload = buffer_data(rb);
 
-        if (frame->opcode == WEBSOCKET_OP_TEXT)
-            frame->payload[frame->payloadlen] = 0;
+    dispach_message(cl);
 
-        dispach_message(cl);
-
-        free(frame->payload);
-        frame->payload = NULL;
-        frame->wait = false;
-    } else {
-        if (!parse_header_len(cl, data, len, &payloadlen, &payloadlen_size))
-            return false;
-
-        payload = data + payloadlen_size + 1;
-
-        if (len < 1 + payloadlen_size + payloadlen) {
-            if (1 + payloadlen_size + payloadlen > cl->us->r.buffer_len) {
-                frame->payload = malloc(payloadlen + 1);
-                if (!frame->payload) {
-                    uwsc_log_err("No mem");
-                    uwsc_error(cl, UWSC_ERROR_NOMEM);
-                    return false;
-                }
-
-                memcpy(frame->payload, payload, len - 1 - payloadlen_size);
-                ustream_consume(cl->us, len);
-
-                frame->wait = true;
-                frame->payloadlen = payloadlen;
-                frame->buffer_len = len - 1 - payloadlen_size;
-            }
-            return false;
-        }
-
-        frame->payload = payload;
-        frame->payloadlen = payloadlen;
-
-        dispach_message(cl);
-        ustream_consume(cl->us, 1 + payloadlen_size + payloadlen);
-    }
     return true;
 }
 
-static int parse_header(struct uwsc_client *cl, char *data)
+static int parse_http_header(struct uwsc_client *cl)
 {
     char *k, *v;
     bool has_upgrade = false;
@@ -216,369 +211,366 @@ static int parse_header(struct uwsc_client *cl, char *data)
         if (!strcasecmp(k, "Connection") && !strcasecmp(v, "upgrade"))
             has_connection = true;
 
-        if (!strcasecmp(k, "Sec-WebSocket-Accept"))
+        if (!strcasecmp(k, "Sec-WebSocket-Accept")) {
+            static const char *magic = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
+            struct sha1_ctx ctx;
+            unsigned char sha[20];
+            char my[512] = "";
+
+            sha1_init(&ctx);
+            sha1_update(&ctx, (uint8_t *)cl->key, strlen(cl->key));
+            sha1_update(&ctx, (uint8_t *)magic, strlen(magic));
+            sha1_final(&ctx, sha);
+
+            b64_encode(sha, sizeof(sha), my, sizeof(my));
+
+            /* verify the value of Sec-WebSocket-Accept */
+            if (strcmp(v, my)) {
+                uwsc_log_err("verify Sec-WebSocket-Accept failed\n");
+                return -1;
+            }
             has_sec_webSocket_accept = true;
-
-        /* TODO: verify the value of Sec-WebSocket-Accept */
+        }
     }
 
-    if (!has_upgrade || !has_connection || !has_sec_webSocket_accept) {
-        uwsc_log_err("Invalid header");
+    if (!has_upgrade || !has_connection || !has_sec_webSocket_accept)
         return -1;
-    }
     
     return 0;
 }
 
-static void __uwsc_notify_read(struct uwsc_client *cl, struct ustream *s)
+static void uwsc_parse(struct uwsc_client *cl)
 {
-    char *data;
-    int len;
+    struct buffer *rb = &cl->rb;
+    int err = 0;
 
     do {
-        data = ustream_get_read_buf(s, &len);
-        if (!data || !len)
+        int data_len = buffer_length(rb);
+        if (data_len == 0)
             return;
 
         if (cl->state == CLIENT_STATE_HANDSHAKE) {
-            char *p, *version, *status_code, *summary;
+            char *version, *status_code, *summary;
+            char *p, *data = buffer_data(rb);
 
-            p = strstr(data, "\r\n\r\n");
+            p = memmem(data, data_len, "\r\n\r\n", 4);
             if (!p)
                 return;
-            
-            p[2] = 0;
+            p[0] = '\0';
 
             version = strtok(data, " ");
             status_code = strtok(NULL, " ");
             summary = strtok(NULL, "\r\n");
 
             if (!version || strcmp(version, "HTTP/1.1")) {
-                uwsc_log_err("Invalid version");
-                cl->error = UWSC_ERROR_INVALID_HEADER;
+                err = UWSC_ERROR_INVALID_HEADER;
                 break;
             }
 
             if (!status_code || atoi(status_code) != 101) {
-                uwsc_log_err("Invalid status code");
-                cl->error = UWSC_ERROR_INVALID_HEADER;
+                err = UWSC_ERROR_INVALID_HEADER;
                 break;
             }
 
             if (!summary) {
-                uwsc_log_err("Invalid summary");
-                cl->error = UWSC_ERROR_INVALID_HEADER;
+                err = UWSC_ERROR_INVALID_HEADER;
                 break;
             }
 
-            if (parse_header(cl, data)) {
-                cl->error = UWSC_ERROR_INVALID_HEADER;
+            if (parse_http_header(cl)) {
+                err = UWSC_ERROR_INVALID_HEADER;
                 break;
             }
 
-            ustream_consume(cl->us, p + 4 - data);
+            buffer_pull(rb, NULL, p - data + 4);
 
             if (cl->onopen)
                 cl->onopen(cl);
 
             cl->state = CLIENT_STATE_MESSAGE;
         } else if (cl->state == CLIENT_STATE_MESSAGE) {
-            if (!parse_frame(cl, (uint8_t *)data, len))
+            if (!parse_frame(cl))
                 break;
         } else {
             uwsc_log_err("Invalid state\n");
         }
        
-    } while(!cl->error);
+    } while(!err);
 
-    if (cl->error)
-        uwsc_error(cl, cl->error);
+    if (err)
+        uwsc_error(cl, err, "Invalid header");
 }
 
-static inline void uwsc_notify_read(struct ustream *s, int bytes)
+static void uwsc_io_read_cb(struct ev_loop *loop, struct ev_io *w, int revents)
 {
-    struct uwsc_client *cl = container_of(s, struct uwsc_client, sfd.stream);
-    __uwsc_notify_read(cl, s);
-}
+    struct uwsc_client *cl = container_of(w, struct uwsc_client, ior);
+    struct buffer *rb = &cl->rb;
+    bool eof;
+    int ret;
 
-static void __uwsc_notify_state(struct uwsc_client *cl, struct ustream *s)
-{
-    errno = 0;
+    if (cl->state == CLIENT_STATE_CONNECTING) {
+        int err;
+        socklen_t optlen = sizeof(err);
 
-    if (!cl->error && s->write_error)
-        cl->error = UWSC_ERROR_WRITE;
-
-    if (!cl->error) {
-        if (!s->eof || s->w.data_bytes)
+        getsockopt(w->fd, SOL_SOCKET, SO_ERROR, &err, &optlen);
+        if (err) {
+            uwsc_error(cl, UWSC_ERROR_CONNECT, strerror(err));
             return;
+        }
+        cl->state = CLIENT_STATE_HANDSHAKE;
+        return;
     }
 
-    if (cl->error && cl->onerror)
-        cl->onerror(cl);
+#if UWSC_SSL_SUPPORT
+    if (cl->ssl)
+        ret = buffer_put_fd(rb, w->fd, -1, &eof, uwsc_ssl_read, cl->ssl);
+    else
+#endif
+        ret = buffer_put_fd(rb, w->fd, -1, &eof, NULL, NULL);
 
-    if (cl->onclose)
-        cl->onclose(cl);
-}
-
-static inline void uwsc_notify_state(struct ustream *s)
-{
-    struct uwsc_client *cl = container_of(s, struct uwsc_client, sfd.stream);
-    __uwsc_notify_state(cl, s);
-}
-
-#if (UWSC_SSL_SUPPORT)
-static inline void uwsc_ssl_notify_read(struct ustream *s, int bytes)
-{
-    struct uwsc_client *cl = container_of(s, struct uwsc_client, ussl.stream);
-    __uwsc_notify_read(cl, s);
-}
-
-static inline void uwsc_ssl_notify_state(struct ustream *s)
-{
-    struct uwsc_client *cl = container_of(s, struct uwsc_client, ussl.stream);
-    __uwsc_notify_state(cl, s);
-}
-
-static void uwsc_ssl_notify_error(struct ustream_ssl *ssl, int error, const char *str)
-{
-    struct uwsc_client *cl = container_of(ssl, struct uwsc_client, ussl);
-
-    uwsc_error(cl, UWSC_ERROR_SSL);
-    uwsc_log_err("ssl error:%d:%s", error, str);
-}
-
-static void uwsc_ssl_notify_verify_error(struct ustream_ssl *ssl, int error, const char *str)
-{
-    struct uwsc_client *cl = container_of(ssl, struct uwsc_client, ussl);
-
-    if (!cl->ssl_require_validation)
+    if (ret < 0) {
+        uwsc_error(cl, UWSC_ERROR_IO, "read error");
         return;
-
-    uwsc_error(cl, UWSC_ERROR_SSL_INVALID_CERT);
-    uwsc_log_err("ssl error:%d:%s", error, str);
-}
-
-static void uwsc_ssl_notify_connected(struct ustream_ssl *ssl)
-{
-    struct uwsc_client *cl = container_of(ssl, struct uwsc_client, ussl);
-
-    if (!cl->ssl_require_validation)
-        return;
-
-    if (!cl->ussl.valid_cn) {
-        uwsc_error(cl, UWSC_ERROR_SSL_CN_MISMATCH);
-        uwsc_log_err("ssl error: cn mismatch");
     }
+
+    if (eof) {
+        uwsc_free(cl);
+
+        if (cl->onclose)
+            cl->onclose(cl, UWSC_CLOSE_STATUS_ABNORMAL_CLOSE, "unexpected EOF");
+        return;
+    }
+
+    uwsc_parse(cl);
 }
 
+static void uwsc_io_write_cb(struct ev_loop *loop, struct ev_io *w, int revents)
+{
+    struct uwsc_client *cl = container_of(w, struct uwsc_client, iow);
+    int ret;
+
+    if (unlikely(cl->state == CLIENT_STATE_CONNECTING)) {
+#if UWSC_SSL_SUPPORT
+        if (cl->ssl)
+            cl->state = CLIENT_STATE_SSL_HANDSHAKE;
+        else
+#endif
+            cl->state = CLIENT_STATE_HANDSHAKE;
+    }
+
+#if UWSC_SSL_SUPPORT
+    if (unlikely(cl->state == CLIENT_STATE_SSL_HANDSHAKE)) {
+        ret = uwsc_ssl_handshake(cl->ssl);
+        if (ret == 1)
+            cl->state = CLIENT_STATE_HANDSHAKE;
+        else if (ret == -1)
+            uwsc_error(cl, UWSC_ERROR_SSL_HANDSHAKE, "ssl handshake failed");
+        return;
+    }
 #endif
 
-static int uwsc_send(struct uwsc_client *cl, void *data, int len, enum websocket_op op)
+#if UWSC_SSL_SUPPORT
+    if (cl->ssl)
+        ret = buffer_pull_to_fd(&cl->wb, w->fd, buffer_length(&cl->wb), uwsc_ssl_write, cl->ssl);
+    else
+#endif
+        ret = buffer_pull_to_fd(&cl->wb, w->fd, buffer_length(&cl->wb), NULL, NULL);
+
+    if (ret < 0) {
+        uwsc_error(cl, UWSC_ERROR_IO, "write error");
+        return;
+    }
+
+    if (buffer_length(&cl->wb) < 1)
+        ev_io_stop(loop, w);
+}
+
+static int uwsc_send(struct uwsc_client *cl, const void *data, size_t len, int op)
 {
-    char *head, *p;
-    uint8_t mask_key[4];
-    int i, head_size;
+    struct buffer *wb = &cl->wb;
+    const uint8_t *p;
+    uint8_t mk[4];
+    int i;
 
-    if (len > INT_MAX - 14) {
-        uwsc_log_err("Payload too big");
-        return -1;
-    }
+    get_nonce(mk, 4);
 
-    head = malloc(14);
-    if (!head) {
-        uwsc_log_err("NO mem");
-        return -1;
-    }
-
-    get_nonce(mask_key, 4);
-
-    p = head;
-    *p++ = 0x80 | op;   /* FIN and opcode */
+    buffer_put_u8(wb, 0x80 | op);
 
     if (len < 126) {
-        *p++ = 0x80 | len;
-        head_size = 6;
-    } else if (len < 0x10000) {
-        *p++ = 0x80 | 126;
-        *p++ = (len >> 8) & 0xFF;
-        *p++ = len & 0xFF;
-        head_size = 8;
+        buffer_put_u8(wb, 0x80 | len);
+    } else if (len < 65536) {
+        buffer_put_u8(wb, 0x80 | 126);
+        buffer_put_u8(wb, (len >> 8) & 0xFF);
+        buffer_put_u8(wb, len & 0xFF);
     } else {
-        *p++ = 0x80 | 127;
-        *p++ = 0;
-        *p++ = 0;
-        *p++ = 0;
-        *p++ = 0;
-        *p++ = (len >> 24) & 0xFF;
-        *p++ = (len >> 16) & 0xFF;
-        *p++ = (len >> 8) & 0xFF;
-        *p++ = len & 0xFF;
-        head_size = 14;
+        uwsc_log_err("Payload too large");
+        return -1;
     }
 
-    memcpy(p, mask_key, 4);
+    buffer_put_data(wb, mk, 4);
+
     p = data;
-    for (i = 0; i < len; i++) {
-        p[i] ^= mask_key[i % 4];
-    }
+    for (i = 0; i < len; i++)
+        buffer_put_u8(wb, p[i] ^ mk[i % 4]);
 
-    ustream_write(cl->us, head, head_size, false);
-    ustream_write(cl->us, data, len, false);
-    free(head);
+    ev_io_start(cl->loop, &cl->iow);
 
     return 0;
 }
 
 static inline void uwsc_ping(struct uwsc_client *cl)
 {
-    cl->send(cl, NULL, 0, WEBSOCKET_OP_PING);
+    const char *msg = "libuwsc";
+    cl->send(cl, msg, strlen(msg), UWSC_OP_PING);
 }
 
 static void uwsc_handshake(struct uwsc_client *cl, const char *host, int port, const char *path)
 {
+    struct buffer *wb = &cl->wb;
     uint8_t nonce[16];
-    char websocket_key[256] = "";
 
     get_nonce(nonce, sizeof(nonce));
     
-    b64_encode(nonce, sizeof(nonce), websocket_key, sizeof(websocket_key));
+    b64_encode(nonce, sizeof(nonce), cl->key, sizeof(cl->key));
 
-    ustream_printf(cl->us, "GET %s HTTP/1.1\r\n", path);
-    ustream_printf(cl->us, "Upgrade: websocket\r\n");
-    ustream_printf(cl->us, "Connection: Upgrade\r\n");
-    ustream_printf(cl->us, "Sec-WebSocket-Key: %s\r\n", websocket_key);
-    ustream_printf(cl->us, "Sec-WebSocket-Version: 13\r\n");
+    buffer_put_printf(wb, "GET %s HTTP/1.1\r\n", path);
+    buffer_put_string(wb, "Upgrade: websocket\r\n");
+    buffer_put_string(wb, "Connection: Upgrade\r\n");
+    buffer_put_printf(wb, "Sec-WebSocket-Key: %s\r\n", cl->key);
+    buffer_put_string(wb, "Sec-WebSocket-Version: 13\r\n");
 
-    ustream_printf(cl->us, "Host: %s", host);
+    buffer_put_printf(wb, "Host: %s", host);
     if (port == 80)
-        ustream_printf(cl->us, "\r\n");
+        buffer_put_string(wb, "\r\n");
     else
-        ustream_printf(cl->us, ":%d\r\n", port);
+        buffer_put_printf(wb, ":%d\r\n", port);
     
-    ustream_printf(cl->us, "\r\n");
+    buffer_put_string(wb, "\r\n");
+
+    ev_io_start(cl->loop, &cl->iow);
 }
 
-static void uwsc_ping_cb(struct uloop_timeout *timeout)
+static void uwsc_timer_cb(struct ev_loop *loop, struct ev_timer *w, int revents)
 {
-    struct uwsc_client *cl = container_of(timeout, struct uwsc_client, ping_timer);
+    struct uwsc_client *cl = container_of(w, struct uwsc_client, timer);
+    static time_t connect_time;
+    static time_t last_ping;
+    static int ntimeout;
+    time_t now = time(NULL);
 
-    if (cl->wait_pingresp) {
-        uwsc_error(cl, UWSC_ERROR_PING_TIMEOUT);
-        return;
+    if (unlikely(cl->state == CLIENT_STATE_CONNECTING)) {
+        if (connect_time == 0) {
+            connect_time = now;
+            return;
+        }
+
+        if (now - connect_time > 5) {
+            uwsc_error(cl, UWSC_ERROR_CONNECT, "Connect timeout");
+            return;
+        }
     }
 
+    if (unlikely(cl->state != CLIENT_STATE_MESSAGE))
+        return;
+
+    if (cl->ping_interval == 0)
+        return;
+
+    if (unlikely(cl->wait_pong)) {
+        if (now - last_ping < 3)
+            return;
+
+        uwsc_log_err("ping timeout %d\n", ++ntimeout);
+        if (ntimeout > 2) {
+            uwsc_error(cl, UWSC_ERROR_PING_TIMEOUT, "ping timeout");
+            return;
+        }
+    } else {
+        ntimeout = 0;
+    }
+
+
+    if (now - last_ping < cl->ping_interval)
+        return;
+    last_ping = now;
+
     cl->ping(cl);
-    cl->wait_pingresp = true;
-    uloop_timeout_set(&cl->ping_timer, 1 * 1000);
+    cl->wait_pong = true;
 }
 
 static void uwsc_set_ping_interval(struct uwsc_client *cl, int interval)
 {
     cl->ping_interval = interval;
-
-    uloop_timeout_cancel(&cl->ping_timer);
-
-    if (interval > 0)
-        uloop_timeout_set(&cl->ping_timer, interval * 1000);
 }
 
-struct uwsc_client *uwsc_new_ssl(const char *url, const char *ca_crt_file, bool verify)
+struct uwsc_client *uwsc_new_ssl_v2(const char *url, const char *ca_crt_file,
+    bool verify, struct ev_loop *loop)
 {
     struct uwsc_client *cl = NULL;
-    char *host = NULL;
     const char *path = "/";
+    char host[256] = "";
+    bool inprogress;
+    int sock = -1;
     int port;
-    int sock;
     bool ssl;
+    int eai;
 
-    if (parse_url(url, &host, &port, &path, &ssl) < 0) {
-        uwsc_log_err("Invalid url");
+    if (parse_url(url, host, sizeof(host), &port, &path, &ssl) < 0) {
+        uwsc_log_err("Invalid url\n");
         return NULL;
     }
 
-    sock = usock(USOCK_TCP | USOCK_NOCLOEXEC, host, usock_port(port));
+    sock = tcp_connect(host, port, SOCK_NONBLOCK | SOCK_CLOEXEC, &inprogress, &eai);
     if (sock < 0) {
-        uwsc_log_err("usock");
-        goto err;
+        uwsc_log_err("tcp_connect failed: %s\n", strerror(errno));
+        return NULL;
+    } else if (sock == 0) {
+        uwsc_log_err("tcp_connect failed: %s\n", gai_strerror(eai));
+        return NULL;
     }
 
     cl = calloc(1, sizeof(struct uwsc_client));
     if (!cl) {
-        uwsc_log_err("calloc");
+        uwsc_log_err("calloc failed: %s\n", strerror(errno));
         goto err;
     }
 
-    cl->free = uwsc_free;
+    if (!inprogress)
+        cl->state = CLIENT_STATE_HANDSHAKE;
+
+    cl->loop = loop;
+    cl->sock = sock;
     cl->send = uwsc_send;
     cl->ping = uwsc_ping;
     cl->set_ping_interval = uwsc_set_ping_interval;
-    cl->ping_timer.cb = uwsc_ping_cb;
-    ustream_fd_init(&cl->sfd, sock);
 
     if (ssl) {
 #if (UWSC_SSL_SUPPORT)
-        cl->ssl_ops = init_ustream_ssl();
-        if (!cl->ssl_ops) {
-            uwsc_log_err("SSL support not available,please install one of the libustream-ssl-* libraries");
-            goto err;
-        }
-
-        cl->ssl_ctx = cl->ssl_ops->context_new(false);
-        if (!cl->ssl_ctx) {
-            uwsc_log_err("ustream_ssl_context_new");
-            goto err;
-        }
-
-        if (ca_crt_file) {
-            if (cl->ssl_ops->context_add_ca_crt_file(cl->ssl_ctx, ca_crt_file)) {
-                uwsc_log_err("Load CA certificates failed");
-                goto err;
-            }
-        } else if (verify) {
-            int i;
-            glob_t gl;
-
-            cl->ssl_require_validation = true;
-
-            if (!glob("/etc/ssl/certs/*.crt", 0, NULL, &gl)) {
-                for (i = 0; i < gl.gl_pathc; i++)
-                    cl->ssl_ops->context_add_ca_crt_file(cl->ssl_ctx, gl.gl_pathv[i]);
-                globfree(&gl);
-            }
-        }
-
-        cl->us = &cl->ussl.stream;
-        cl->us->string_data = true;
-        cl->us->notify_read = uwsc_ssl_notify_read;
-        cl->us->notify_state = uwsc_ssl_notify_state;
-        cl->ussl.notify_error = uwsc_ssl_notify_error;
-        cl->ussl.notify_verify_error = uwsc_ssl_notify_verify_error;
-        cl->ussl.notify_connected = uwsc_ssl_notify_connected;
-        cl->ussl.server_name = host;
-        cl->ssl_ops->init(&cl->ussl, &cl->sfd.stream, cl->ssl_ctx, false);
-        cl->ssl_ops->set_peer_cn(&cl->ussl, host);
+        uwsc_ssl_init((struct uwsc_ssl_ctx **)&cl->ssl, cl->sock);
 #else
-        uwsc_log_err("SSL support not available");
+        uwsc_log_err("SSL is not enabled at compile\n");
         goto err;
 #endif
-    } else {
-        cl->us = &cl->sfd.stream;
-        cl->us->string_data = true;
-        cl->us->notify_read = uwsc_notify_read;
-        cl->us->notify_state = uwsc_notify_state;
     }
 
+    ev_io_init(&cl->iow, uwsc_io_write_cb, sock, EV_WRITE);
+
+    ev_io_init(&cl->ior, uwsc_io_read_cb, sock, EV_READ);
+    ev_io_start(loop, &cl->ior);
+
+    ev_timer_init(&cl->timer, uwsc_timer_cb, 0.0, 1.0);
+    ev_timer_start(cl->loop, &cl->timer);
+
     uwsc_handshake(cl, host, port, path);
-    free(host);
     
     return cl;
 
 err:
-    if (host)
-        free(host);
+    if (sock > 0)
+        close(sock);
 
     if (cl)
-        cl->free(cl);
+        free(cl);
 
-    return NULL;    
+    return NULL;
 }

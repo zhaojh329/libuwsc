@@ -17,20 +17,17 @@
  * USA
  */
  
-#ifndef _LOG_H
-#define _LOG_H
+#ifndef _UWSC_LOG_H
+#define _UWSC_LOG_H
 
+#include <syslog.h>
 #include <string.h>
 
-#include <libubox/ulog.h>
+void uwsc_log_threshold(int threshold);
+void uwsc_log_close();
 
 #define __FILENAME__ (strrchr(__FILE__, '/') ? strrchr(__FILE__, '/') + 1 : __FILE__)
 
-#define uwsc_log_threshold(priority) ulog_threshold(priority)
-
-/*
- * Use the syslog output log and include the name and number of rows at the call
- */
 #define uwsc_log(priority, fmt...) __uwsc_log(__FILENAME__, __LINE__, priority, fmt)
 
 #define uwsc_log_debug(fmt...)     uwsc_log(LOG_DEBUG, fmt)

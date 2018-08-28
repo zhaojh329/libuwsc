@@ -18,28 +18,98 @@
  */
 
 #include <stdio.h>
-#include <string.h>
 #include <stdarg.h>
-#include <errno.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <string.h>
+#include <stdbool.h>
 
 #include "log.h"
 
-void __uwsc_log(const char *filename, int line, int priority, const char *fmt, ...)
+static int log_threshold = LOG_DEBUG;
+static bool log_initialized;
+static const char *ident;
+
+void (*log_write)(int priority, const char *fmt, va_list ap);
+
+static const char *log_ident()
 {
-    va_list ap;
-    static char buf[128];
+    FILE *self;
+    static char line[64];
+    char *p = NULL;
+    char *sbuf;
 
-    snprintf(buf, sizeof(buf), "(%s:%d) ", filename, line);
-    
-    va_start(ap, fmt);
-    vsnprintf(buf + strlen(buf), sizeof(buf) - strlen(buf), fmt, ap);
-    va_end(ap);
-
-    if (priority == LOG_ERR && errno > 0) {
-        snprintf(buf + strlen(buf), sizeof(buf) - strlen(buf), ":%s", strerror(errno));
-        errno = 0;
+    if ((self = fopen("/proc/self/status", "r")) != NULL) {
+        while (fgets(line, sizeof(line), self)) {
+            if (!strncmp(line, "Name:", 5)) {
+                strtok_r(line, "\t\n", &sbuf);
+                p = strtok_r(NULL, "\t\n", &sbuf);
+                break;
+            }
+        }
+        fclose(self);
     }
 
-    ulog(priority, "%s\n", buf);
+    return p;
 }
 
+static inline void log_write_stdout(int priority, const char *fmt, va_list ap)
+{
+    vfprintf(stderr, fmt, ap);
+}
+
+static inline void log_write_syslog(int priority, const char *fmt, va_list ap)
+{
+    vsyslog(priority, fmt, ap);
+}
+
+static inline void log_init()
+{
+    if (log_initialized)
+        return;
+
+    ident = log_ident();
+
+    if (isatty(STDOUT_FILENO)) {
+        log_write = log_write_stdout;
+    } else {
+        log_write = log_write_syslog;
+
+        openlog(ident, 0, LOG_DAEMON);
+    }
+
+    log_initialized = true;
+}
+
+
+void uwsc_log_threshold(int threshold)
+{
+    log_threshold = threshold;
+}
+
+void uwsc_log_close()
+{
+    if (!log_initialized)
+        return;
+
+    closelog();
+
+    log_initialized = 0;
+}
+
+void __uwsc_log(const char *filename, int line, int priority, const char *fmt, ...)
+{
+    static char new_fmt[256];
+    va_list ap;
+
+    if (priority > log_threshold)
+        return;
+
+    log_init();
+
+    snprintf(new_fmt, sizeof(new_fmt), "(%s:%d) %s", filename, line, fmt);
+
+    va_start(ap, fmt);
+    log_write(priority, new_fmt, ap);
+    va_end(ap);
+}

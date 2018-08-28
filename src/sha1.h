@@ -1,4 +1,6 @@
 /*
+ * Modified from mongoose(https://github.com/cesanta/mongoose)
+ *
  * Copyright (C) 2017 Jianhui Zhao <jianhuizhao329@gmail.com>
  *
  * This program is free software; you can redistribute it and/or
@@ -16,28 +18,20 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301
  * USA
  */
- 
-#ifndef _UTILS_H
-#define _UTILS_H
 
-#include <stddef.h>
-#include <stdbool.h>
-#include <inttypes.h>
+#ifndef _SHA1_H
+#define _SHA1_H
 
-#include "config.h"
+#include <stdint.h>
 
-#ifndef container_of
-#define container_of(ptr, type, member)                 \
-    ({                              \
-        const __typeof__(((type *) NULL)->member) *__mptr = (ptr);  \
-        (type *) ((char *) __mptr - offsetof(type, member));    \
-    })
-#endif
+struct sha1_ctx {
+    uint32_t state[5];
+    size_t count[2];
+    uint8_t buffer[64];
+};
 
-int get_nonce(uint8_t *dest, int len);
-int parse_url(const char *url, char *host, int host_len,
-    int *port, const char **path, bool *ssl);
-
-int tcp_connect(const char *host, int port, int flags, bool *inprogress, int *eai);
+void sha1_init(struct sha1_ctx *ctx);
+void sha1_update(struct sha1_ctx *ctx, const void *data, size_t len);
+void sha1_final(struct sha1_ctx *ctx, uint8_t digest[20]);
 
 #endif

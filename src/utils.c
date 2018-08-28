@@ -20,6 +20,11 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
+#include <errno.h>
+#include <unistd.h>
+#include <netdb.h>
+#include <arpa/inet.h>
+#include <sys/socket.h>
 
 #include "log.h"
 #include "utils.h"
@@ -39,11 +44,12 @@ int get_nonce(uint8_t *dest, int len)
     return -1;
 }
 
-int parse_url(const char *url, char **host, int *port, const char **path, bool *ssl)
+int parse_url(const char *url, char *host, int host_len,
+    int *port, const char **path, bool *ssl)
 {
     char *p;
     const char *host_pos;
-    int host_len = 0;
+    int hl = 0;
 
     if (!strncmp(url, "ws://", 5)) {
         *ssl = false;
@@ -61,7 +67,7 @@ int parse_url(const char *url, char **host, int *port, const char **path, bool *
 
     p = strchr(url, ':');
     if (p) {
-        host_len = p - url;
+        hl = p - url;
         url = p + 1;
         *port = atoi(url);
     }
@@ -69,36 +75,81 @@ int parse_url(const char *url, char **host, int *port, const char **path, bool *
     p = strchr(url, '/');
     if (p) {
         *path = p;
-        if (host_len == 0)
-            host_len = p - host_pos;
+        if (hl == 0)
+            hl = p - host_pos;
     }
 
-    if (host_len == 0)
-        host_len = strlen(host_pos);
+    if (hl == 0)
+        hl = strlen(host_pos);
 
-    *host = strndup(host_pos, host_len);
+    if (hl > host_len - 1)
+        hl = host_len - 1;
+
+    memcpy(host, host_pos, hl);
 
     return 0;
 }
 
-#if (UWSC_SSL_SUPPORT)
-const struct ustream_ssl_ops *init_ustream_ssl()
+static const char *port2str(int port)
 {
-    void *dlh;
-    struct ustream_ssl_ops *ops;
+    static char buffer[sizeof("65535\0")];
 
-    dlh = dlopen("libustream-ssl.so", RTLD_LAZY | RTLD_LOCAL);
-    if (!dlh) {
-        uwsc_log_err("Failed to load ustream-ssl library: %s", dlerror());
+    if (port < 0 || port > 65535)
         return NULL;
-    }
 
-    ops = dlsym(dlh, "ustream_ssl_ops");
-    if (!ops) {
-        uwsc_log_err("Could not find required symbol 'ustream_ssl_ops' in ustream-ssl library");
-        return NULL;
-    }
+    snprintf(buffer, sizeof(buffer), "%u", port);
 
-    return ops;
+    return buffer;
 }
-#endif
+
+int tcp_connect(const char *host, int port, int flags, bool *inprogress, int *eai)
+{
+    int ret;
+    int sock = -1;
+    int addr_len;
+    struct sockaddr *addr = NULL;
+    struct addrinfo *result, *rp;
+    struct addrinfo hints = {
+        .ai_family = AF_INET,
+        .ai_socktype = SOCK_STREAM,
+        .ai_flags = AI_ADDRCONFIG
+    };
+
+    *inprogress = false;
+
+    ret = getaddrinfo(host, port2str(port), &hints, &result);
+    if (ret) {
+        if (ret == EAI_SYSTEM)
+            return -1;
+        *eai =  ret;
+        return 0;
+    }
+
+    for (rp = result; rp != NULL; rp = rp->ai_next) {
+        if (rp->ai_family == AF_INET) {
+            addr = rp->ai_addr;
+            addr_len = rp->ai_addrlen;
+            break;
+        }
+    }
+
+    if (!addr)
+        goto free_addrinfo;
+
+    sock = socket(AF_INET, SOCK_STREAM | flags, 0);
+    if (sock < 0)
+        goto free_addrinfo;
+
+    if (connect(sock, addr, addr_len) < 0) {
+        if (errno != EINPROGRESS) {
+            close(sock);
+            sock = -1;
+        } else {
+            *inprogress = true;
+        }
+    }
+
+free_addrinfo:
+    freeaddrinfo(result);
+    return sock;
+}

@@ -1,4 +1,6 @@
 /*
+ * Modified from libubox(https://git.openwrt.org/?p=project/libubox.git)
+ *
  * Copyright (C) 2017 Jianhui Zhao <jianhuizhao329@gmail.com>
  *
  * This program is free software; you can redistribute it and/or
@@ -16,28 +18,15 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301
  * USA
  */
- 
-#ifndef _UTILS_H
-#define _UTILS_H
 
-#include <stddef.h>
-#include <stdbool.h>
-#include <inttypes.h>
+#ifndef _BASE64_H
+#define _BASE64_H
 
-#include "config.h"
+#include <sys/types.h>
 
-#ifndef container_of
-#define container_of(ptr, type, member)                 \
-    ({                              \
-        const __typeof__(((type *) NULL)->member) *__mptr = (ptr);  \
-        (type *) ((char *) __mptr - offsetof(type, member));    \
-    })
-#endif
+int b64_encode(const void *_src, size_t srclength,
+           void *dest, size_t targsize);
 
-int get_nonce(uint8_t *dest, int len);
-int parse_url(const char *url, char *host, int host_len,
-    int *port, const char **path, bool *ssl);
-
-int tcp_connect(const char *host, int port, int flags, bool *inprogress, int *eai);
+int b64_decode(const void *_src, void *dest, size_t targsize);
 
 #endif

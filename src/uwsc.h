@@ -20,84 +20,104 @@
 #ifndef _UWSC_H
 #define _UWSC_H
 
-#include <libubox/uloop.h>
-#include <libubox/ustream.h>
+#include <ev.h>
 
 #include "log.h"
 #include "config.h"
+#include "buffer.h"
 
-#if (UWSC_SSL_SUPPORT)
-#include <libubox/ustream-ssl.h>
-#endif
+#define HTTP_HEAD_LIMIT 4096
 
-enum uwsc_error_code {
-    UWSC_ERROR_WRITE = 1,
-    UWSC_ERROR_INVALID_HEADER,
-    UWSC_ERROR_SSL,
-    UWSC_ERROR_SSL_INVALID_CERT,
-    UWSC_ERROR_SSL_CN_MISMATCH,
-    UWSC_ERROR_SERVER_MASKED,
-    UWSC_ERROR_NOMEM,
-    UWSC_ERROR_NOT_SUPPORT,
-    UWSC_ERROR_PING_TIMEOUT,
-    UWSC_ERROR_CLOSED_BY_SERVER
+/* WebSocket close status codes defined in RFC 6455, section 11.7 */
+enum {
+    UWSC_CLOSE_STATUS_NORMAL                = 1000,
+    UWSC_CLOSE_STATUS_GOINGAWAY             = 1001,
+    UWSC_CLOSE_STATUS_PROTOCOL_ERR          = 1002,
+    UWSC_CLOSE_STATUS_UNACCEPTABLE_OPCODE   = 1003,
+    UWSC_CLOSE_STATUS_RESERVED              = 1004,
+    UWSC_CLOSE_STATUS_NO_STATUS             = 1005,
+    UWSC_CLOSE_STATUS_ABNORMAL_CLOSE        = 1006,
+    UWSC_CLOSE_STATUS_INVALID_PAYLOAD       = 1007,
+    UWSC_CLOSE_STATUS_POLICY_VIOLATION      = 1008,
+    UWSC_CLOSE_STATUS_MESSAGE_TOO_LARGE     = 1009,
+    UWSC_CLOSE_STATUS_EXTENSION_REQUIRED    = 1010,
+    UWSC_CLOSE_STATUS_UNEXPECTED_CONDITION  = 1011,
+    UWSC_CLOSE_STATUS_TLS_FAILURE           = 1015
 };
 
-enum client_state {
+enum {
+    UWSC_ERROR_IO = 1,
+    UWSC_ERROR_INVALID_HEADER,
+    UWSC_ERROR_SERVER_MASKED,
+    UWSC_ERROR_NOT_SUPPORT,
+    UWSC_ERROR_PING_TIMEOUT,
+    UWSC_ERROR_CONNECT,
+    UWSC_ERROR_SSL_HANDSHAKE
+};
+
+enum {
+    CLIENT_STATE_CONNECTING,
+    CLIENT_STATE_SSL_HANDSHAKE,
     CLIENT_STATE_HANDSHAKE,
     CLIENT_STATE_MESSAGE
 };
 
-enum websocket_op {
-    WEBSOCKET_OP_CONTINUE = 0x0,
-    WEBSOCKET_OP_TEXT = 0x1,
-    WEBSOCKET_OP_BINARY = 0x2,
-    WEBSOCKET_OP_CLOSE = 0x8,
-    WEBSOCKET_OP_PING = 0x9,
-    WEBSOCKET_OP_PONG = 0xA
+enum {
+    UWSC_OP_CONTINUE   = 0x0,
+    UWSC_OP_TEXT       = 0x1,
+    UWSC_OP_BINARY     = 0x2,
+    UWSC_OP_CLOSE      = 0x8,
+    UWSC_OP_PING       = 0x9,
+    UWSC_OP_PONG       = 0xA
 };
 
 struct uwsc_frame {
     uint8_t opcode;
-    bool wait;              /* Wait more data */
-    uint8_t *buffer;
-    uint64_t buffer_len;
-    uint64_t payloadlen;
+    size_t payloadlen;
     uint8_t *payload;
 };
 
 struct uwsc_client {
-    struct ustream *us;
-    struct ustream_fd sfd;
-    enum client_state state;
+    int sock;
+    int state;
+    struct ev_loop *loop;
+    struct ev_io ior;
+    struct ev_io iow;
+    struct buffer rb;
+    struct buffer wb;
     struct uwsc_frame frame;
-    struct uloop_timeout ping_timer;
-    bool wait_pingresp;
+    struct ev_timer timer;
+    bool wait_pong;
     int ping_interval;
-    enum uwsc_error_code error;
-    
-#if (UWSC_SSL_SUPPORT)
-    bool ssl_require_validation;
-    struct ustream_ssl ussl;
-    struct ustream_ssl_ctx *ssl_ctx;
-    const struct ustream_ssl_ops *ssl_ops;
-#endif
+    char key[256];  /* Sec-WebSocket-Key */
+    void *ssl;
 
     void (*onopen)(struct uwsc_client *cl);
     void (*set_ping_interval)(struct uwsc_client *cl, int interval);
-    void (*onmessage)(struct uwsc_client *cl, void *data, uint64_t len, enum websocket_op op);
-    void (*onerror)(struct uwsc_client *cl);
-    void (*onclose)(struct uwsc_client *cl);
-    int (*send)(struct uwsc_client *cl, void *data, int len, enum websocket_op op);
+    void (*onmessage)(struct uwsc_client *cl, void *data, size_t len, bool binary);
+    void (*onerror)(struct uwsc_client *cl, int err, const char *msg);
+    void (*onclose)(struct uwsc_client *cl, int code, const char *reason);
+    int (*send)(struct uwsc_client *cl, const void *data, size_t len, int op);
     void (*ping)(struct uwsc_client *cl);
-    void (*free)(struct uwsc_client *cl);
 };
 
-struct uwsc_client *uwsc_new_ssl(const char *url, const char *ca_crt_file, bool verify);
+struct uwsc_client *uwsc_new_ssl_v2(const char *url, const char *ca_crt_file, bool verify,
+    struct ev_loop *loop);
+
+static inline struct uwsc_client *uwsc_new_ssl(const char *url, const char *ca_crt_file,
+    bool verify)
+{
+    return uwsc_new_ssl_v2(url, ca_crt_file, verify, EV_DEFAULT);
+}
 
 static inline struct uwsc_client *uwsc_new(const char *url)
 {
     return uwsc_new_ssl(url, NULL, false);
+}
+
+static inline struct uwsc_client *uwsc_new_v2(const char *url, struct ev_loop *loop)
+{
+    return uwsc_new_ssl_v2(url, NULL, false, loop);
 }
 
 #endif
