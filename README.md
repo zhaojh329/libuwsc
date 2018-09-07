@@ -23,6 +23,9 @@ A Lightweight and fully asynchronous WebSocket client library based on [libev] f
 
 `Keep Watching for More Actions on This Space`
 
+# Why should I choose libev?
+ libev tries to follow the UNIX toolbox philosophy of doing one thing only, as good as possible.
+
 # Dependencies
 * [libev]
 * [openssl] - If you choose openssl as your SSL backend
