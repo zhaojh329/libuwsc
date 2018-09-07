@@ -30,10 +30,10 @@ static void stdin_read_cb(struct ev_loop *loop, struct ev_io *w, int revents)
     char buf[128] = "";
     int n;
 
+
     n = read(w->fd, buf, sizeof(buf));
     if (n > 1) {
         buf[n - 1] = 0;
-        printf("You input:[%s]\n", buf);
 
         cl->send(cl, buf, strlen(buf) + 1,  UWSC_OP_TEXT);
     }
@@ -52,6 +52,8 @@ static void uwsc_onopen(struct uwsc_client *cl)
 
     /* Send Ping per 10s */
     cl->set_ping_interval(cl, 10);
+
+    printf("Please input:\n");
 }
 
 static void uwsc_onmessage(struct uwsc_client *cl, void *data, size_t len, bool binary)
@@ -71,17 +73,19 @@ static void uwsc_onmessage(struct uwsc_client *cl, void *data, size_t len, bool 
     } else {
         printf("[%.*s]\n", (int)len, (char *)data);
     }
+
+    printf("Please input:\n");
 }
 
 static void uwsc_onerror(struct uwsc_client *cl, int err, const char *msg)
 {
-    uwsc_log_info("onerror:%d: %s\n", err, msg);
+    uwsc_log_err("onerror:%d: %s\n", err, msg);
     ev_break(cl->loop, EVBREAK_ALL);
 }
 
 static void uwsc_onclose(struct uwsc_client *cl, int code, const char *reason)
 {
-    uwsc_log_info("onclose:%d: %s\n", code, reason);
+    uwsc_log_err("onclose:%d: %s\n", code, reason);
     ev_break(cl->loop, EVBREAK_ALL);
 }
 
@@ -99,7 +103,6 @@ static void usage(const char *prog)
         "      -u url       # ws://localhost:8080/ws\n"
         "      -c file      # Load CA certificates from file\n"
         "      -n           # don't validate the server's certificate\n"
-        "      -v           # verbose\n"
         , prog);
     exit(1);
 }
@@ -107,13 +110,12 @@ static void usage(const char *prog)
 int main(int argc, char **argv)
 {
     int opt;
-    struct uwsc_client *cl;
     struct ev_loop *loop = EV_DEFAULT;
     const char *url = "ws://localhost:8080/ws";
+    struct ev_signal signal_watcher;
+    struct uwsc_client *cl;
     const char *crt_file = NULL;
     bool verify = true;
-    bool verbose = false;
-    struct ev_signal signal_watcher;
 
     while ((opt = getopt(argc, argv, "u:nc:v")) != -1) {
         switch (opt) {
@@ -126,16 +128,10 @@ int main(int argc, char **argv)
         case 'c':
             crt_file = optarg;
             break;
-        case 'v':
-            verbose = true;
-            break;
         default: /* '?' */
             usage(argv[0]);
         }
     }
-
-    if (!verbose)
-        uwsc_log_threshold(LOG_ERR);
 
     cl = uwsc_new_ssl_v2(url, crt_file, verify, loop);
     if (!cl)
