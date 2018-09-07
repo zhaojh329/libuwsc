@@ -30,7 +30,6 @@ static void stdin_read_cb(struct ev_loop *loop, struct ev_io *w, int revents)
     char buf[128] = "";
     int n;
 
-
     n = read(w->fd, buf, sizeof(buf));
     if (n > 1) {
         buf[n - 1] = 0;
@@ -56,7 +55,8 @@ static void uwsc_onopen(struct uwsc_client *cl)
     printf("Please input:\n");
 }
 
-static void uwsc_onmessage(struct uwsc_client *cl, void *data, size_t len, bool binary)
+static void uwsc_onmessage(struct uwsc_client *cl,
+	void *data, size_t len, bool binary)
 {
     printf("Recv:");
 
@@ -101,42 +101,42 @@ static void usage(const char *prog)
 {
     fprintf(stderr, "Usage: %s [option]\n"
         "      -u url       # ws://localhost:8080/ws\n"
-        "      -c file      # Load CA certificates from file\n"
-        "      -n           # don't validate the server's certificate\n"
+        "                     wss://localhost:8080/ws\n"
+        "      -P n      	# Ping interval\n"
         , prog);
     exit(1);
 }
 
 int main(int argc, char **argv)
 {
-    int opt;
+	const char *url = "ws://localhost:8080/ws";
     struct ev_loop *loop = EV_DEFAULT;
-    const char *url = "ws://localhost:8080/ws";
     struct ev_signal signal_watcher;
+	int ping_interval = 10;	/* second */
     struct uwsc_client *cl;
-    const char *crt_file = NULL;
-    bool verify = true;
+	int opt;
 
-    while ((opt = getopt(argc, argv, "u:nc:v")) != -1) {
+    while ((opt = getopt(argc, argv, "u:P:")) != -1) {
         switch (opt) {
         case 'u':
             url = optarg;
             break;
-        case 'n':
-            verify = false;
-            break;
-        case 'c':
-            crt_file = optarg;
-            break;
+		case 'P':
+			ping_interval = atoi(optarg);
+			break;
         default: /* '?' */
             usage(argv[0]);
         }
     }
 
-    cl = uwsc_new_ssl_v2(url, crt_file, verify, loop);
+	uwsc_log_info("Libuwsc: %s\n", UWSC_VERSION_STRING);
+
+    cl = uwsc_new(loop, url, ping_interval);
     if (!cl)
         return -1;
-   
+
+	uwsc_log_info("Start connect...\n");
+
     cl->onopen = uwsc_onopen;
     cl->onmessage = uwsc_onmessage;
     cl->onerror = uwsc_onerror;
@@ -147,7 +147,6 @@ int main(int argc, char **argv)
 
     ev_run(loop, 0);
 
-    cl->send(cl, NULL, 0, UWSC_OP_CLOSE);
     free(cl);
     
     return 0;

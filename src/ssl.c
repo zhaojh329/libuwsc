@@ -93,7 +93,7 @@ int uwsc_ssl_init(struct uwsc_ssl_ctx **ctx, int sock)
     SSL_load_error_strings();
 
     c->ctx = SSL_CTX_new(SSLv23_client_method());
-    SSL_CTX_set_verify(c->ctx, SSL_VERIFY_NONE, 0);
+    SSL_CTX_set_verify(c->ctx, SSL_VERIFY_NONE, NULL);
 
     c->ssl = SSL_new(c->ctx);
     SSL_set_fd(c->ssl, sock);

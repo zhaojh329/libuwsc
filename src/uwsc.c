@@ -498,13 +498,7 @@ static void uwsc_timer_cb(struct ev_loop *loop, struct ev_timer *w, int revents)
     cl->wait_pong = true;
 }
 
-static void uwsc_set_ping_interval(struct uwsc_client *cl, int interval)
-{
-    cl->ping_interval = interval;
-}
-
-struct uwsc_client *uwsc_new_ssl_v2(const char *url, const char *ca_crt_file,
-    bool verify, struct ev_loop *loop)
+struct uwsc_client *uwsc_new(struct ev_loop *loop, const char *url, int ping_interval)
 {
     struct uwsc_client *cl = NULL;
     const char *path = "/";
@@ -538,11 +532,14 @@ struct uwsc_client *uwsc_new_ssl_v2(const char *url, const char *ca_crt_file,
     if (!inprogress)
         cl->state = CLIENT_STATE_HANDSHAKE;
 
+	if (!loop)
+		loop = EV_DEFAULT;
+
     cl->loop = loop;
     cl->sock = sock;
     cl->send = uwsc_send;
     cl->ping = uwsc_ping;
-    cl->set_ping_interval = uwsc_set_ping_interval;
+	cl->ping_interval = ping_interval;
 
     if (ssl) {
 #if (UWSC_SSL_SUPPORT)

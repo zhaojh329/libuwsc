@@ -101,23 +101,12 @@ struct uwsc_client {
     void (*ping)(struct uwsc_client *cl);
 };
 
-struct uwsc_client *uwsc_new_ssl_v2(const char *url, const char *ca_crt_file, bool verify,
-    struct ev_loop *loop);
-
-static inline struct uwsc_client *uwsc_new_ssl(const char *url, const char *ca_crt_file,
-    bool verify)
-{
-    return uwsc_new_ssl_v2(url, ca_crt_file, verify, EV_DEFAULT);
-}
-
-static inline struct uwsc_client *uwsc_new(const char *url)
-{
-    return uwsc_new_ssl(url, NULL, false);
-}
-
-static inline struct uwsc_client *uwsc_new_v2(const char *url, struct ev_loop *loop)
-{
-    return uwsc_new_ssl_v2(url, NULL, false, loop);
-}
+/*
+ *	uwsc_new - creat an uwsc_client struct and connect to server
+ *	@loop: If NULL will use EV_DEFAULT
+ *	@url: A websock url. ws://xxx.com/xx or wss://xxx.com/xx
+ *  @ping_interval: ping interval
+ */
+struct uwsc_client *uwsc_new(struct ev_loop *loop, const char *url, int ping_interval);
 
 #endif
