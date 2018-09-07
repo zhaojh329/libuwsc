@@ -14,32 +14,24 @@
 [![Issue Welcome][5]][6]
 [![Release Version][7]][8]
 
-[libubox]: https://git.openwrt.org/?p=project/libubox.git
-[ustream-ssl]: https://git.openwrt.org/?p=project/ustream-ssl.git
+[libev]: http://software.schmorp.de/pkg/libev.html
 [openssl]: https://github.com/openssl/openssl
-[mbedtls]: https://github.com/ARMmbed/mbedtls
-[CyaSSl(wolfssl)]: https://github.com/wolfSSL/wolfssl
+[mbedtls(polarssl)]: https://github.com/ARMmbed/mbedtls
+[cyaSSl(Wolfssl)]: https://github.com/wolfSSL/wolfssl
 
-一个轻量的针对嵌入式Linux的基于[libubox]的WebSocket客户端C库。
+一个轻量的针对嵌入式Linux的基于[libev]的WebSocket客户端C库。
 
 `请保持关注以获取最新的项目动态`
 
 # 依赖
-* [libubox]
-* [ustream-ssl] - 如果你需要支持SSL
-* [mbedtls] - 如果你选择mbedtls作为你的SSL后端
-* [CyaSSl(wolfssl)] - 如果你选择wolfssl作为你的SSL后端
+* [libev]
 * [openssl] - 如果你选择openssl作为你的SSL后端
+* [mbedTls(polarssl)] - 如果你选择mbedtls作为你的SSL后端
+* [cyassl(wolfssl)] - 如果你选择wolfssl作为你的SSL后端
 
 # 安装依赖软件
 
-    sudo apt install libjson-c-dev
-
-    git clone https://git.openwrt.org/project/libubox.git
-    cd libubox && cmake -DBUILD_LUA=OFF . && sudo make install
-
-    git clone https://git.openwrt.org/project/ustream-ssl.git
-    cd ustream-ssl && cmake . && sudo make install
+    sudo apt install libev-dev libssl-dev
 
 # 配置
 查看支持哪些配置选项

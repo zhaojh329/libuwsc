@@ -14,32 +14,24 @@
 [![Issue Welcome][5]][6]
 [![Release Version][7]][8]
 
-[libubox]: https://git.openwrt.org/?p=project/libubox.git
-[ustream-ssl]: https://git.openwrt.org/?p=project/ustream-ssl.git
+[libev]: http://software.schmorp.de/pkg/libev.html
 [openssl]: https://github.com/openssl/openssl
-[mbedtls]: https://github.com/ARMmbed/mbedtls
+[mbedtls(polarssl)]: https://github.com/ARMmbed/mbedtls
 [CyaSSl(wolfssl)]: https://github.com/wolfSSL/wolfssl
 
-A Lightweight and fully asynchronous WebSocket client C library based on libubox for Embedded Linux.
+A Lightweight and fully asynchronous WebSocket client library based on [libev] for Embedded Linux.
 
 `Keep Watching for More Actions on This Space`
 
 # Dependencies
-* [libubox]
-* [ustream-ssl] - If you need to support SSL
-* [mbedtls] - If you choose mbedtls as your SSL backend
-* [CyaSSl(wolfssl)] - If you choose wolfssl as your SSL backend
+* [libev]
 * [openssl] - If you choose openssl as your SSL backend
+* [mbedtls(polarssl)] - If you choose mbedtls as your SSL backend
+* [cyassl(wolfssl)] - If you choose wolfssl as your SSL backend
 
 # Install dependent packages
 
-    sudo apt install libjson-c-dev
-
-    git clone https://git.openwrt.org/project/libubox.git
-    cd libubox && cmake -DBUILD_LUA=OFF . && sudo make install
-
-    git clone https://git.openwrt.org/project/ustream-ssl.git
-    cd ustream-ssl && cmake . && sudo make install
+    sudo apt int libev-dev libssl-dev
 
 # Configure
 See which configuration are supported
