@@ -44,7 +44,7 @@ struct uwsc_ssl_ctx {
 
 #if UWSC_HAVE_OPENSSL
 #include <openssl/ssl.h>
-#elif UWSC_HAVE_CYASSL
+#elif UWSC_HAVE_WOLFSSL
 #define WC_NO_HARDEN
 #include <wolfssl/openssl/ssl.h>
 #endif
