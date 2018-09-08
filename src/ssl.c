@@ -18,6 +18,7 @@
  */
 
 #include <errno.h>
+#include <stdlib.h>
 
 #include "ssl.h"
 #include "buffer.h"
