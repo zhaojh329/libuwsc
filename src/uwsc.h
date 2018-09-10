@@ -27,6 +27,7 @@
 #include "buffer.h"
 
 #define HTTP_HEAD_LIMIT 4096
+#define UWSC_MAX_CONNECT_TIME    5  /* second */
 
 /* WebSocket close status codes defined in RFC 6455, section 11.7 */
 enum {
@@ -89,8 +90,11 @@ struct uwsc_client {
     struct ev_timer timer;
     bool wait_pong;
     int ping_interval;
-    char key[256];  /* Sec-WebSocket-Key */
-    void *ssl;
+    ev_tstamp start_time;   /* Time stamp of begin connect */
+    ev_tstamp last_ping;    /* Time stamp of last ping */
+    int ntimeout;           /* Number of timeouts */
+    char key[256];          /* Sec-WebSocket-Key */
+    void *ssl;              /* Context wrap of openssl, wolfssl and mbedtls */
 
     void (*onopen)(struct uwsc_client *cl);
     void (*set_ping_interval)(struct uwsc_client *cl, int interval);

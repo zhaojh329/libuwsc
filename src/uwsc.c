@@ -453,18 +453,10 @@ static void uwsc_handshake(struct uwsc_client *cl, const char *host, int port, c
 static void uwsc_timer_cb(struct ev_loop *loop, struct ev_timer *w, int revents)
 {
     struct uwsc_client *cl = container_of(w, struct uwsc_client, timer);
-    static time_t connect_time;
-    static time_t last_ping;
-    static int ntimeout;
-    time_t now = time(NULL);
+    ev_tstamp now = ev_now(loop);
 
     if (unlikely(cl->state == CLIENT_STATE_CONNECTING)) {
-        if (connect_time == 0) {
-            connect_time = now;
-            return;
-        }
-
-        if (now - connect_time > 5) {
+        if (now - cl->start_time > UWSC_MAX_CONNECT_TIME) {
             uwsc_error(cl, UWSC_ERROR_CONNECT, "Connect timeout");
             return;
         }
@@ -473,28 +465,27 @@ static void uwsc_timer_cb(struct ev_loop *loop, struct ev_timer *w, int revents)
     if (unlikely(cl->state != CLIENT_STATE_MESSAGE))
         return;
 
-    if (cl->ping_interval == 0)
+    if (cl->ping_interval < 1)
         return;
 
     if (unlikely(cl->wait_pong)) {
-        if (now - last_ping < 3)
+        if (now - cl->last_ping < 3)
             return;
 
-        uwsc_log_err("ping timeout %d\n", ++ntimeout);
-        if (ntimeout > 2) {
+        uwsc_log_err("ping timeout %d\n", ++cl->ntimeout);
+        if (cl->ntimeout > 2) {
             uwsc_error(cl, UWSC_ERROR_PING_TIMEOUT, "ping timeout");
             return;
         }
     } else {
-        ntimeout = 0;
+        cl->ntimeout = 0;
     }
 
-
-    if (now - last_ping < cl->ping_interval)
+    if (now - cl->last_ping < cl->ping_interval)
         return;
-    last_ping = now;
 
     cl->ping(cl);
+    cl->last_ping = now;
     cl->wait_pong = true;
 }
 
@@ -539,6 +530,7 @@ struct uwsc_client *uwsc_new(struct ev_loop *loop, const char *url, int ping_int
     cl->sock = sock;
     cl->send = uwsc_send;
     cl->ping = uwsc_ping;
+    cl->start_time = ev_now(loop);
 	cl->ping_interval = ping_interval;
 
     if (ssl) {
