@@ -20,6 +20,7 @@
 #include <errno.h>
 #include <stdlib.h>
 
+#include "log.h"
 #include "ssl.h"
 #include "buffer.h"
 

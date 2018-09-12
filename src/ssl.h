@@ -23,7 +23,7 @@
 #include <stdint.h>
 #include <sys/types.h>
 
-#include "uwsc.h"
+#include "config.h"
 
 #if UWSC_SSL_SUPPORT
 
