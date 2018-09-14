@@ -249,7 +249,7 @@ static void uwsc_parse(struct uwsc_client *cl)
         if (data_len == 0)
             return;
 
-        if (cl->state == CLIENT_STATE_HANDSHAKE) {
+        if (unlikely(cl->state == CLIENT_STATE_HANDSHAKE)) {
             char *version, *status_code, *summary;
             char *p, *data = buffer_data(rb);
 
