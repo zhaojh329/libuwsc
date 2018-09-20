@@ -403,7 +403,7 @@ static int uwsc_send(struct uwsc_client *cl, const void *data, size_t len, int o
         buffer_put_u8(wb, (len >> 8) & 0xFF);
         buffer_put_u8(wb, len & 0xFF);
     } else {
-        uwsc_log_err("Payload too large");
+        uwsc_log_err("Payload too large\n");
         return -1;
     }
 
