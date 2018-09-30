@@ -22,8 +22,8 @@
 
 #include <stdint.h>
 #include <stdarg.h>
-#include <stdbool.h>
 #include <string.h>
+#include <stdbool.h>
 #include <sys/types.h>
 
 /* Test for GCC < 2.96 */
@@ -231,6 +231,46 @@ static inline uint64_t buffer_pull_u64(struct buffer *b)
         val = *((uint64_t *)b->data);
         b->data += 8;
     }
+
+    return val;
+}
+
+static inline uint8_t buffer_get_u8(struct buffer *b, ssize_t offset)
+{
+    uint8_t val = 0;
+
+    if (likely(buffer_length(b) > offset))
+        val = b->data[offset];
+
+    return val;
+}
+
+static inline uint16_t buffer_get_u16(struct buffer *b, ssize_t offset)
+{
+    uint16_t val = 0;
+
+    if (likely(buffer_length(b) > offset + 1))
+        val = *((uint16_t *)(b->data + offset));
+
+    return val;
+}
+
+static inline uint32_t buffer_get_u32(struct buffer *b, ssize_t offset)
+{
+    uint32_t val = 0;
+
+    if (likely(buffer_length(b) > offset + 3))
+        val = *((uint32_t *)(b->data + offset));
+
+    return val;
+}
+
+static inline uint64_t buffer_get_u64(struct buffer *b, ssize_t offset)
+{
+    uint64_t val = 0;
+
+    if (likely(buffer_length(b) > offset + 7))
+        val = *((uint64_t *)(b->data + offset));
 
     return val;
 }
