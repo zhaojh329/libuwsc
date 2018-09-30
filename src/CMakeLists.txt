@@ -90,6 +90,10 @@ add_library(uwsc SHARED ${SOURCE_FILES})
 set_target_properties(uwsc PROPERTIES VERSION ${UWSC_VERSION_MAJOR}.${UWSC_VERSION_MINOR}.${UWSC_VERSION_PATCH})
 target_link_libraries(uwsc ${EXTRA_LIBS})
 
+add_library(uwsc_s STATIC ${SOURCE_FILES})
+set_target_properties(uwsc_s PROPERTIES OUTPUT_NAME uwsc)
+target_link_libraries(uwsc_s ${EXTRA_LIBS})
+
 # configure a header file to pass some of the CMake settings to the source code
 configure_file(${CMAKE_CURRENT_SOURCE_DIR}/config.h.in ${CMAKE_CURRENT_BINARY_DIR}/config.h)
 
@@ -105,8 +109,9 @@ install(
 )
 
 install(
-    TARGETS uwsc LIBRARY
-    DESTINATION lib
+    TARGETS uwsc uwsc_s
+    LIBRARY DESTINATION lib
+    ARCHIVE DESTINATION lib
 )
 
 message(STATUS "UWSC_VERSION: ${UWSC_VERSION_MAJOR}.${UWSC_VERSION_MINOR}.${UWSC_VERSION_PATCH}")
