@@ -49,9 +49,6 @@ static void uwsc_onopen(struct uwsc_client *cl)
     ev_io_init(&stdin_watcher, stdin_read_cb, STDIN_FILENO, EV_READ);
     ev_io_start(cl->loop, &stdin_watcher);
 
-    /* Send Ping per 10s */
-    cl->set_ping_interval(cl, 10);
-
     printf("Please input:\n");
 }
 
