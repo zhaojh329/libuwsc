@@ -418,6 +418,56 @@ static int uwsc_send(struct uwsc_client *cl, const void *data, size_t len, int o
     return 0;
 }
 
+int uwsc_send_ex(struct uwsc_client *cl, int op, int num, ...)
+{
+    struct buffer *wb = &cl->wb;
+    const uint8_t *p;
+    uint8_t mk[4];
+    int len = 0;
+    va_list ap;
+    int i, j, k;
+
+    get_nonce(mk, 4);
+
+    buffer_put_u8(wb, 0x80 | op);
+
+    va_start(ap, num);
+    for (i = 0; i < num; i++) {
+        len += va_arg(ap, int);
+        va_arg(ap, int);
+    }
+    va_end(ap);
+
+    if (len < 126) {
+        buffer_put_u8(wb, 0x80 | len);
+    } else if (len < 65536) {
+        buffer_put_u8(wb, 0x80 | 126);
+        buffer_put_u8(wb, (len >> 8) & 0xFF);
+        buffer_put_u8(wb, len & 0xFF);
+    } else {
+        uwsc_log_err("Payload too large\n");
+        return -1;
+    }
+
+    buffer_put_data(wb, mk, 4);
+
+    k = 0;
+    va_start(ap, num);
+    for (i = 0; i < num; i++) {
+        len = va_arg(ap, int);
+        p = va_arg(ap, uint8_t *);
+
+        for (j = 0; j < len; j++)
+            buffer_put_u8(wb, p[j] ^ mk[(k + j) % 4]);
+        k += len;
+    }
+    va_end(ap);
+
+    ev_io_start(cl->loop, &cl->iow);
+
+    return 0;
+}
+
 static inline void uwsc_ping(struct uwsc_client *cl)
 {
     const char *msg = "libuwsc";
@@ -529,6 +579,7 @@ struct uwsc_client *uwsc_new(struct ev_loop *loop, const char *url, int ping_int
     cl->loop = loop;
     cl->sock = sock;
     cl->send = uwsc_send;
+    cl->send_ex = uwsc_send_ex;
     cl->ping = uwsc_ping;
     cl->start_time = ev_now(loop);
 	cl->ping_interval = ping_interval;

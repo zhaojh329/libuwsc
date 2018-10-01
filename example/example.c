@@ -49,6 +49,10 @@ static void uwsc_onopen(struct uwsc_client *cl)
     ev_io_init(&stdin_watcher, stdin_read_cb, STDIN_FILENO, EV_READ);
     ev_io_start(cl->loop, &stdin_watcher);
 
+    /* Usage of send_ex */
+    cl->send_ex(cl, UWSC_OP_TEXT,
+        2, strlen("hello,"), "hello,", strlen("server"), "server");
+
     printf("Please input:\n");
 }
 

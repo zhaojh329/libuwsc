@@ -104,6 +104,7 @@ struct uwsc_client {
 
     /* Only up to 65535 bytes are allowed to be sent */
     int (*send)(struct uwsc_client *cl, const void *data, size_t len, int op);
+    int (*send_ex)(struct uwsc_client *cl, int op, int num, ...);
     void (*ping)(struct uwsc_client *cl);
 };
 
