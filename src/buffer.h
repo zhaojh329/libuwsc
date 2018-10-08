@@ -53,7 +53,9 @@ struct buffer {
 };
 
 int buffer_init(struct buffer *b, size_t size);
+int buffer_resize(struct buffer *b, size_t size);
 void buffer_free(struct buffer *b);
+
 
 /*  Actual data Length */
 static inline size_t buffer_length(const struct buffer *b)

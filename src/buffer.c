@@ -31,7 +31,7 @@
 
 #include "buffer.h"
 
-static int buffer_resize(struct buffer *b, size_t size)
+int buffer_resize(struct buffer *b, size_t size)
 {
     uint8_t *head;
     size_t new_size = getpagesize();
