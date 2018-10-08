@@ -23,7 +23,6 @@
 
 #include <stdlib.h>
 #include <string.h>
-#include <unistd.h>
 #include <stdio.h>
 #include <errno.h>
 #include <limits.h>
@@ -109,6 +108,7 @@ void *buffer_put(struct buffer *b, size_t len)
 
     tmp = b->tail;
     b->tail += len;
+
     return tmp;
 }
 
@@ -230,6 +230,8 @@ size_t buffer_pull(struct buffer *b, void *dest, size_t len)
 
     b->data += len;
 
+    buffer_check_persistent_size(b);
+
     return len;
 }
 
@@ -282,6 +284,8 @@ int buffer_pull_to_fd(struct buffer *b, int fd, size_t len,
         remain -= ret;
         b->data += ret;
     } while (remain);
+
+    buffer_check_persistent_size(b);
 
     return len - remain;
 }

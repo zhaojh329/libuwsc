@@ -23,6 +23,7 @@
 #include <stdint.h>
 #include <stdarg.h>
 #include <string.h>
+#include <unistd.h>
 #include <stdbool.h>
 #include <sys/types.h>
 
@@ -46,6 +47,7 @@ enum {
 };
 
 struct buffer {
+    size_t persistent; /* persistent size */
     uint8_t *head;  /* Head of buffer */
     uint8_t *data;  /* Data head pointer */
     uint8_t *tail;  /* Data tail pointer */
@@ -82,6 +84,23 @@ static inline size_t buffer_tailroom(const struct buffer *b)
 static inline void *buffer_data(const struct buffer *b)
 {
     return b->data;
+}
+
+static inline void buffer_set_persistent_size(struct buffer *b, size_t size)
+{
+    size_t new_size = getpagesize();
+
+    while (new_size < size)
+        new_size <<= 1;
+
+    b->persistent = new_size;
+}
+
+static inline void buffer_check_persistent_size(struct buffer *b)
+{
+    if (b->persistent > 0 &&
+        buffer_size(b) > b->persistent && buffer_length(b) < b->persistent)
+        buffer_resize(b, b->persistent);
 }
 
 void *buffer_put(struct buffer *b, size_t len);
@@ -182,8 +201,10 @@ int buffer_put_fd(struct buffer *b, int fd, ssize_t len, bool *eof,
  */
 static inline void buffer_truncate(struct buffer *b, size_t len)
 {
-    if (buffer_length(b) > len)
+    if (buffer_length(b) > len) {
         b->tail = b->data + len;
+        buffer_check_persistent_size(b);
+    }
 }
 
 
