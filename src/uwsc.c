@@ -601,6 +601,9 @@ struct uwsc_client *uwsc_new(struct ev_loop *loop, const char *url, int ping_int
     ev_timer_init(&cl->timer, uwsc_timer_cb, 0.0, 1.0);
     ev_timer_start(cl->loop, &cl->timer);
 
+    buffer_set_persistent_size(&cl->rb, UWSC_BUFFER_PERSISTENT_SIZE);
+    buffer_set_persistent_size(&cl->wb, UWSC_BUFFER_PERSISTENT_SIZE);
+
     uwsc_handshake(cl, host, port, path);
     
     return cl;

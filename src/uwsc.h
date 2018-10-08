@@ -26,8 +26,9 @@
 #include "config.h"
 #include "buffer.h"
 
-#define HTTP_HEAD_LIMIT 4096
-#define UWSC_MAX_CONNECT_TIME    5  /* second */
+#define HTTP_HEAD_LIMIT             4096
+#define UWSC_MAX_CONNECT_TIME       5  /* second */
+#define UWSC_BUFFER_PERSISTENT_SIZE 4096
 
 /* WebSocket close status codes defined in RFC 6455, section 11.7 */
 enum {
