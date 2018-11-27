@@ -91,10 +91,14 @@ int uwsc_ssl_init(struct uwsc_ssl_ctx **ctx, int sock)
 
     c->net.fd = sock;
 #else
+#if OPENSSL_VERSION_NUMBER < 0x10100000L
     SSL_library_init();
     SSL_load_error_strings();
 
     c->ctx = SSL_CTX_new(SSLv23_client_method());
+#else
+    c->ctx = SSL_CTX_new(TLS_client_method());
+#endif
     SSL_CTX_set_verify(c->ctx, SSL_VERIFY_NONE, NULL);
 
     c->ssl = SSL_new(c->ctx);
