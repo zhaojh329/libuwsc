@@ -255,21 +255,20 @@ int buffer_pull_to_fd(struct buffer *b, int fd, size_t len,
 
     remain = len;
 
-    do {
-        ssize_t ret;
-        size_t data_len = buffer_length(b);
+    if (remain > buffer_length(b))
+        remain = buffer_length(b);
 
-        if (!data_len)
-            break;
+    while (remain > 0) {
+        ssize_t ret;
 
         if (wr) {
-            ret = wr(fd, b->data, data_len, arg);
+            ret = wr(fd, b->data, remain, arg);
             if (ret == P_FD_ERR)
                 return -1;
             else if (ret == P_FD_PENDING)
                 break;
         } else {
-            ret = write(fd, b->data, data_len);
+            ret = write(fd, b->data, remain);
             if (ret < 0) {
                 if (errno == EINTR)
                     continue;
@@ -283,7 +282,7 @@ int buffer_pull_to_fd(struct buffer *b, int fd, size_t len,
 
         remain -= ret;
         b->data += ret;
-    } while (remain);
+    }
 
     buffer_check_persistent_size(b);
 
