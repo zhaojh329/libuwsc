@@ -63,9 +63,8 @@ static int uwsc_send_close(struct uwsc_client *cl, int code, const char *reason)
 {
     char buf[128] = "";
 
-    buf[1] = code & 0xFF;
-    buf[0] = (code >> 8)& 0xFF;
-
+    code = htobe16(code & 0xFFFF);
+    memcpy(buf, &code, 2);
     strncpy(&buf[2], reason, sizeof(buf) - 3);
 
     return cl->send(cl, buf, strlen(buf + 2) + 2, UWSC_OP_CLOSE);
@@ -400,8 +399,7 @@ static int uwsc_send(struct uwsc_client *cl, const void *data, size_t len, int o
         buffer_put_u8(wb, 0x80 | len);
     } else if (len < 65536) {
         buffer_put_u8(wb, 0x80 | 126);
-        buffer_put_u8(wb, (len >> 8) & 0xFF);
-        buffer_put_u8(wb, len & 0xFF);
+        buffer_put_u16(wb, htobe16(len));
     } else {
         uwsc_log_err("Payload too large\n");
         return -1;
@@ -442,8 +440,7 @@ int uwsc_send_ex(struct uwsc_client *cl, int op, int num, ...)
         buffer_put_u8(wb, 0x80 | len);
     } else if (len < 65536) {
         buffer_put_u8(wb, 0x80 | 126);
-        buffer_put_u8(wb, (len >> 8) & 0xFF);
-        buffer_put_u8(wb, len & 0xFF);
+        buffer_put_u16(wb, htobe16(len));
     } else {
         uwsc_log_err("Payload too large\n");
         return -1;
