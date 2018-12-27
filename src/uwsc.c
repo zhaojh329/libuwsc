@@ -24,7 +24,7 @@
 #include <stdio.h>
 #include <time.h>
 #include <netdb.h>
-#include <arpa/inet.h>
+#include <limits.h>
 
 #include "ssl.h"
 #include "uwsc.h"
@@ -114,7 +114,7 @@ static void dispach_message(struct uwsc_client *cl)
     }
 }
 
-static bool parse_header_len(struct uwsc_client *cl, uint64_t *payloadlen,
+static bool parse_header_len(struct uwsc_client *cl, size_t *payloadlen,
     int *payloadlen_size)
 {
     struct uwsc_frame *frame = &cl->frame;
@@ -145,12 +145,17 @@ static bool parse_header_len(struct uwsc_client *cl, uint64_t *payloadlen,
     case 126:
         if (buffer_length(rb) < 4)
             return false;
-        *payloadlen = ntohs(*(uint16_t *)&data[2]);
+        *payloadlen = be16toh(*(uint16_t *)&data[2]);
         *payloadlen_size += 2;
         break;
     case 127:
-        uwsc_error(cl, UWSC_ERROR_NOT_SUPPORT, "Payload too large");
-        uwsc_send_close(cl, UWSC_CLOSE_STATUS_MESSAGE_TOO_LARGE, "");
+        if (be64toh(*(uint64_t *)&data[2]) > ULONG_MAX) {
+            uwsc_error(cl, UWSC_ERROR_NOT_SUPPORT, "Payload too large");
+            uwsc_send_close(cl, UWSC_CLOSE_STATUS_MESSAGE_TOO_LARGE, "");
+        } else {
+            *payloadlen = be64toh(*(uint64_t *)&data[2]);
+            *payloadlen_size += 8;
+        }
         break;
     default:
         break;
@@ -163,7 +168,7 @@ static bool parse_frame(struct uwsc_client *cl)
 {
     struct uwsc_frame *frame = &cl->frame;
     struct buffer *rb = &cl->rb;
-    uint64_t payloadlen;
+    size_t payloadlen;
     int payloadlen_size;
 
     if (!parse_header_len(cl, &payloadlen, &payloadlen_size))
@@ -401,8 +406,8 @@ static int uwsc_send(struct uwsc_client *cl, const void *data, size_t len, int o
         buffer_put_u8(wb, 0x80 | 126);
         buffer_put_u16(wb, htobe16(len));
     } else {
-        uwsc_log_err("Payload too large\n");
-        return -1;
+        buffer_put_u8(wb, 0x80 | 127);
+        buffer_put_u64(wb, htobe64(len));
     }
 
     buffer_put_data(wb, mk, 4);
@@ -442,8 +447,8 @@ int uwsc_send_ex(struct uwsc_client *cl, int op, int num, ...)
         buffer_put_u8(wb, 0x80 | 126);
         buffer_put_u16(wb, htobe16(len));
     } else {
-        uwsc_log_err("Payload too large\n");
-        return -1;
+        buffer_put_u8(wb, 0x80 | 127);
+        buffer_put_u64(wb, htobe64(len));
     }
 
     buffer_put_data(wb, mk, 4);

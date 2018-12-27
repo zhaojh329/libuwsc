@@ -103,7 +103,6 @@ struct uwsc_client {
     void (*onerror)(struct uwsc_client *cl, int err, const char *msg);
     void (*onclose)(struct uwsc_client *cl, int code, const char *reason);
 
-    /* Only up to 65535 bytes are allowed to be sent */
     int (*send)(struct uwsc_client *cl, const void *data, size_t len, int op);
     int (*send_ex)(struct uwsc_client *cl, int op, int num, ...);
     void (*ping)(struct uwsc_client *cl);
