@@ -61,7 +61,9 @@ enum {
     CLIENT_STATE_CONNECTING,
     CLIENT_STATE_SSL_HANDSHAKE,
     CLIENT_STATE_HANDSHAKE,
-    CLIENT_STATE_MESSAGE
+    CLIENT_STATE_PARSE_MSG_HEAD,
+    CLIENT_STATE_PARSE_MSG_PAYLEN,
+    CLIENT_STATE_PARSE_MSG_PAYLOAD
 };
 
 enum {
@@ -76,7 +78,6 @@ enum {
 struct uwsc_frame {
     uint8_t opcode;
     size_t payloadlen;
-    uint8_t *payload;
 };
 
 struct uwsc_client {

@@ -70,19 +70,88 @@ static int uwsc_send_close(struct uwsc_client *cl, int code, const char *reason)
     return cl->send(cl, buf, strlen(buf + 2) + 2, UWSC_OP_CLOSE);
 }
 
-static void dispach_message(struct uwsc_client *cl)
+static bool parse_header(struct uwsc_client *cl)
 {
     struct uwsc_frame *frame = &cl->frame;
+    struct buffer *rb = &cl->rb;
+    uint8_t head, len;
+    bool fin;
+
+    if (buffer_length(rb) < 2)
+        return false;
+
+    head = buffer_pull_u8(rb);
+
+    fin = (head & 0x80) ? true : false;
+    frame->opcode = head & 0x0F;
+
+    if (!fin || frame->opcode == UWSC_OP_CONTINUE) {
+        uwsc_error(cl, UWSC_ERROR_NOT_SUPPORT, "Not support fragment");
+        return false;
+    }
+
+    len = buffer_pull_u8(rb);
+    if (len & 0x80) {
+        uwsc_error(cl, UWSC_ERROR_SERVER_MASKED, "Masked error");
+        return false;
+    }
+
+    frame->payloadlen = len & 0x7F;
+
+    cl->state = CLIENT_STATE_PARSE_MSG_PAYLEN;
+    return true;
+}
+
+static bool parse_paylen(struct uwsc_client *cl)
+{
+    struct uwsc_frame *frame = &cl->frame;
+    struct buffer *rb = &cl->rb;
+    uint64_t len;
+
+    switch (frame->payloadlen) {
+    case 126:
+        if (buffer_length(rb) < 4)
+            return false;
+        frame->payloadlen = be16toh(buffer_pull_u16(rb));
+        break;
+    case 127:
+        if (buffer_length(rb) < 10)
+            return false;
+        len = be64toh(buffer_pull_u64(rb));
+        if (len > ULONG_MAX) {
+            uwsc_error(cl, UWSC_ERROR_NOT_SUPPORT, "Payload too large");
+            uwsc_send_close(cl, UWSC_CLOSE_STATUS_MESSAGE_TOO_LARGE, "");
+        } else {
+            frame->payloadlen = len;
+        }
+        break;
+    default:
+        break;
+    }
+
+    cl->state = CLIENT_STATE_PARSE_MSG_PAYLOAD;
+
+    return true;
+}
+
+static bool dispach_message(struct uwsc_client *cl)
+{
+    struct buffer *rb = &cl->rb;
+    struct uwsc_frame *frame = &cl->frame;
+    uint8_t *payload = buffer_data(rb);
+
+    if (buffer_length(rb) < frame->payloadlen)
+        return false;
 
     switch (frame->opcode) {
     case UWSC_OP_TEXT:
     case UWSC_OP_BINARY:
         if (cl->onmessage)
-            cl->onmessage(cl, frame->payload, frame->payloadlen, frame->opcode == UWSC_OP_BINARY);
+            cl->onmessage(cl, payload, frame->payloadlen, frame->opcode == UWSC_OP_BINARY);
         break;
 
     case UWSC_OP_PING:
-        cl->send(cl, frame->payload, frame->payloadlen, UWSC_OP_PONG);
+        cl->send(cl, payload, frame->payloadlen, UWSC_OP_PONG);
         break;
 
     case UWSC_OP_PONG:
@@ -108,82 +177,27 @@ static void dispach_message(struct uwsc_client *cl)
         break;
     }
 
-    if (frame->payloadlen > 0) {
-        buffer_pull(&cl->rb, NULL, frame->payloadlen);
-        frame->payloadlen = 0;
-    }
-}
-
-static bool parse_header_len(struct uwsc_client *cl, size_t *payloadlen,
-    int *payloadlen_size)
-{
-    struct uwsc_frame *frame = &cl->frame;
-    struct buffer *rb = &cl->rb;
-    uint8_t *data = buffer_data(rb);
-    bool fin;
-
-    if (buffer_length(rb) < 2)
-        return false;
-
-    fin = (data[0] & 0x80) ? true : false;
-    frame->opcode = data[0] & 0x0F;
-
-    if (!fin || frame->opcode == UWSC_OP_CONTINUE) {
-        uwsc_error(cl, UWSC_ERROR_NOT_SUPPORT, "Not support fragment");
-        return false;
-    }
-
-    if (data[1] & 0x80) {
-        uwsc_error(cl, UWSC_ERROR_SERVER_MASKED, "Masked error");
-        return false;
-    }
-
-    *payloadlen_size = 1;
-    *payloadlen = data[1] & 0x7F;
-
-    switch (*payloadlen) {
-    case 126:
-        if (buffer_length(rb) < 4)
-            return false;
-        *payloadlen = be16toh(*(uint16_t *)&data[2]);
-        *payloadlen_size += 2;
-        break;
-    case 127:
-        if (be64toh(*(uint64_t *)&data[2]) > ULONG_MAX) {
-            uwsc_error(cl, UWSC_ERROR_NOT_SUPPORT, "Payload too large");
-            uwsc_send_close(cl, UWSC_CLOSE_STATUS_MESSAGE_TOO_LARGE, "");
-        } else {
-            *payloadlen = be64toh(*(uint64_t *)&data[2]);
-            *payloadlen_size += 8;
-        }
-        break;
-    default:
-        break;
-    }
+    buffer_pull(&cl->rb, NULL, frame->payloadlen);
+    cl->state = CLIENT_STATE_PARSE_MSG_HEAD;
 
     return true;
 }
 
 static bool parse_frame(struct uwsc_client *cl)
 {
-    struct uwsc_frame *frame = &cl->frame;
-    struct buffer *rb = &cl->rb;
-    size_t payloadlen;
-    int payloadlen_size;
-
-    if (!parse_header_len(cl, &payloadlen, &payloadlen_size))
-        return false;
-
-    if (buffer_length(rb) < 1 + payloadlen_size + payloadlen)
-        return false;
-
-    frame->payloadlen = payloadlen;
-
-    buffer_pull(rb, NULL, payloadlen_size + 1);
-
-    frame->payload = buffer_data(rb);
-
-    dispach_message(cl);
+    switch (cl->state) {
+    case CLIENT_STATE_PARSE_MSG_HEAD:
+        if (!parse_header(cl))
+            return false;
+    case CLIENT_STATE_PARSE_MSG_PAYLEN:
+        if (!parse_paylen(cl))
+            return false;
+    case CLIENT_STATE_PARSE_MSG_PAYLOAD:
+        if (!dispach_message(cl))
+            return false;
+    default:
+        break;
+    }
 
     return true;
 }
@@ -253,7 +267,7 @@ static void uwsc_parse(struct uwsc_client *cl)
         if (data_len == 0)
             return;
 
-        if (unlikely(cl->state == CLIENT_STATE_HANDSHAKE)) {
+        if (unlikely(cl->state < CLIENT_STATE_PARSE_MSG_HEAD)) {
             char *version, *status_code, *summary;
             char *p, *data = buffer_data(rb);
 
@@ -291,12 +305,10 @@ static void uwsc_parse(struct uwsc_client *cl)
             if (cl->onopen)
                 cl->onopen(cl);
 
-            cl->state = CLIENT_STATE_MESSAGE;
-        } else if (cl->state == CLIENT_STATE_MESSAGE) {
+            cl->state = CLIENT_STATE_PARSE_MSG_HEAD;
+        } else {
             if (!parse_frame(cl))
                 break;
-        } else {
-            uwsc_log_err("Invalid state\n");
         }
        
     } while(!err);
@@ -514,7 +526,7 @@ static void uwsc_timer_cb(struct ev_loop *loop, struct ev_timer *w, int revents)
         }
     }
 
-    if (unlikely(cl->state != CLIENT_STATE_MESSAGE))
+    if (unlikely(cl->state < CLIENT_STATE_PARSE_MSG_HEAD))
         return;
 
     if (cl->ping_interval < 1)
