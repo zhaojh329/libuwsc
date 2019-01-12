@@ -106,6 +106,7 @@ struct uwsc_client {
 
     int (*send)(struct uwsc_client *cl, const void *data, size_t len, int op);
     int (*send_ex)(struct uwsc_client *cl, int op, int num, ...);
+    int (*send_close)(struct uwsc_client *cl, int code, const char *reason);
     void (*ping)(struct uwsc_client *cl);
 };
 

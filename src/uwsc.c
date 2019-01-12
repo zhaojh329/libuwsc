@@ -65,7 +65,9 @@ static int uwsc_send_close(struct uwsc_client *cl, int code, const char *reason)
 
     code = htobe16(code & 0xFFFF);
     memcpy(buf, &code, 2);
-    strncpy(&buf[2], reason, sizeof(buf) - 3);
+
+    if (reason)
+        strncpy(&buf[2], reason, sizeof(buf) - 3);
 
     return cl->send(cl, buf, strlen(buf + 2) + 2, UWSC_OP_CLOSE);
 }
@@ -594,6 +596,7 @@ struct uwsc_client *uwsc_new(struct ev_loop *loop, const char *url, int ping_int
     cl->sock = sock;
     cl->send = uwsc_send;
     cl->send_ex = uwsc_send_ex;
+    cl->send_close = uwsc_send_close;
     cl->ping = uwsc_ping;
     cl->start_time = ev_now(loop);
 	cl->ping_interval = ping_interval;

@@ -34,7 +34,10 @@ static void stdin_read_cb(struct ev_loop *loop, struct ev_io *w, int revents)
     if (n > 1) {
         buf[n - 1] = 0;
 
-        cl->send(cl, buf, strlen(buf) + 1,  UWSC_OP_TEXT);
+        if (buf[0] == 'q')
+            cl->send_close(cl, UWSC_CLOSE_STATUS_NORMAL, "ByeBye");
+        else
+            cl->send(cl, buf, strlen(buf) + 1,  UWSC_OP_TEXT);
     }
 }
 
