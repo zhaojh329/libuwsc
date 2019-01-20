@@ -17,6 +17,7 @@
  * USA
  */
 
+#include <time.h>
 #include <stdio.h>
 #include <stdarg.h>
 #include <stdlib.h>
@@ -55,6 +56,15 @@ static const char *log_ident()
 
 static inline void log_write_stdout(int priority, const char *fmt, va_list ap)
 {
+    time_t now;
+    struct tm tm;
+    char buf[32];
+
+    now = time(NULL);
+    localtime_r(&now, &tm);
+    strftime(buf, sizeof(buf), "%Y/%m/%d %H:%M:%S", &tm);
+
+    fprintf(stderr, "%s ", buf);
     vfprintf(stderr, fmt, ap);
 }
 
