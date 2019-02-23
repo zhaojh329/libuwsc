@@ -46,9 +46,11 @@ struct uwsc_ssl_ctx {
 
 #if UWSC_HAVE_OPENSSL
 #include <openssl/ssl.h>
+#include <openssl/err.h>
 #elif UWSC_HAVE_WOLFSSL
 #define WC_NO_HARDEN
 #include <wolfssl/openssl/ssl.h>
+#include <wolfssl/openssl/err.h>
 #endif
 
 struct uwsc_ssl_ctx {
@@ -171,6 +173,7 @@ int uwsc_ssl_read(int fd, void *buf, size_t count, void *arg)
         int err = SSL_get_error(ctx->ssl, ret);
         if (err == SSL_ERROR_WANT_READ)
             return P_FD_PENDING;
+        uwsc_log_err("%s\n", ERR_error_string(err, NULL));
         return P_FD_ERR;
     }
 #endif
@@ -193,6 +196,7 @@ int uwsc_ssl_write(int fd, void *buf, size_t count, void *arg)
         int err = SSL_get_error(ctx->ssl, ret);
         if (err == SSL_ERROR_WANT_WRITE)
             return P_FD_PENDING;
+        uwsc_log_err("%s\n", ERR_error_string(err, NULL));
         return P_FD_ERR;
     }
 #endif
