@@ -128,6 +128,7 @@ int uwsc_ssl_handshake(struct uwsc_ssl_ctx *ctx)
         int err = SSL_get_error(ctx->ssl, ret);
         if (err == SSL_ERROR_WANT_READ || err == SSL_ERROR_WANT_WRITE)
             return 0;
+        uwsc_log_err("%s\n", ERR_error_string(err, NULL));
         return -1;
     }
 #endif
