@@ -161,10 +161,11 @@ int uwsc_ssl_read(int fd, void *buf, size_t count, void *arg)
     }
 
     ret = mbedtls_ssl_read(&ctx->ssl, buf, count);
-    if (ret == MBEDTLS_ERR_SSL_WANT_READ)
-        return P_FD_PENDING;
-    if (ret == 0)
+    if (ret < 0) {
+        if (ret == MBEDTLS_ERR_SSL_WANT_READ)
+            return P_FD_PENDING;
         return P_FD_ERR;
+    }
     if (ret > 0)
         ctx->last_read_ok = true;
 #else
@@ -186,10 +187,11 @@ int uwsc_ssl_write(int fd, void *buf, size_t count, void *arg)
 
 #if UWSC_HAVE_MBEDTLS
     int ret = mbedtls_ssl_write(&ctx->ssl, buf, count);
-    if (ret == MBEDTLS_ERR_SSL_WANT_WRITE)
-        return P_FD_PENDING;
-    if (ret == 0)
+    if (ret < 0) {
+        if (ret == MBEDTLS_ERR_SSL_WANT_WRITE)
+            return P_FD_PENDING;
         return P_FD_ERR;
+    }
 #else
     int ret = SSL_write(ctx->ssl, buf, count);
     if (ret < 0) {
