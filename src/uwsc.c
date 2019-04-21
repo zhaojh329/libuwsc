@@ -590,8 +590,8 @@ struct uwsc_client *uwsc_new(struct ev_loop *loop, const char *url, int ping_int
     if (!inprogress)
         cl->state = CLIENT_STATE_HANDSHAKE;
 
-	if (!loop)
-		loop = EV_DEFAULT;
+    if (!loop)
+        loop = EV_DEFAULT;
 
     cl->loop = loop;
     cl->sock = sock;
@@ -600,7 +600,7 @@ struct uwsc_client *uwsc_new(struct ev_loop *loop, const char *url, int ping_int
     cl->send_close = uwsc_send_close;
     cl->ping = uwsc_ping;
     cl->start_time = ev_now(loop);
-	cl->ping_interval = ping_interval;
+    cl->ping_interval = ping_interval;
 
     if (ssl) {
 #if (UWSC_SSL_SUPPORT)
