@@ -111,11 +111,13 @@ struct uwsc_client {
 };
 
 /*
- *	uwsc_new - creat an uwsc_client struct and connect to server
- *	@loop: If NULL will use EV_DEFAULT
- *	@url: A websock url. ws://xxx.com/xx or wss://xxx.com/xx
+ *  uwsc_new - creat an uwsc_client struct and connect to server
+ *  @loop: If NULL will use EV_DEFAULT
+ *  @url: A websock url. ws://xxx.com/xx or wss://xxx.com/xx
  *  @ping_interval: ping interval
+ *  @extra_header: extra http header. Authorization: a1d4cdb1a3cd6a0e94aa3599afcddcf5\r\n
  */
-struct uwsc_client *uwsc_new(struct ev_loop *loop, const char *url, int ping_interval);
+struct uwsc_client *uwsc_new(struct ev_loop *loop, const char *url,
+    int ping_interval, const char *extra_header);
 
 #endif

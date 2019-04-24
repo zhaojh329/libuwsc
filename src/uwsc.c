@@ -490,7 +490,8 @@ static inline void uwsc_ping(struct uwsc_client *cl)
     cl->send(cl, msg, strlen(msg), UWSC_OP_PING);
 }
 
-static void uwsc_handshake(struct uwsc_client *cl, const char *host, int port, const char *path)
+static void uwsc_handshake(struct uwsc_client *cl, const char *host, int port,
+    const char *path, const char *extra_header)
 {
     struct buffer *wb = &cl->wb;
     uint8_t nonce[16];
@@ -510,7 +511,10 @@ static void uwsc_handshake(struct uwsc_client *cl, const char *host, int port, c
         buffer_put_string(wb, "\r\n");
     else
         buffer_put_printf(wb, ":%d\r\n", port);
-    
+
+    if (extra_header && *extra_header)
+        buffer_put_string(wb, extra_header);
+
     buffer_put_string(wb, "\r\n");
 
     ev_io_start(cl->loop, &cl->iow);
@@ -556,7 +560,8 @@ static void uwsc_timer_cb(struct ev_loop *loop, struct ev_timer *w, int revents)
     cl->wait_pong = true;
 }
 
-struct uwsc_client *uwsc_new(struct ev_loop *loop, const char *url, int ping_interval)
+struct uwsc_client *uwsc_new(struct ev_loop *loop, const char *url,
+    int ping_interval, const char *extra_header)
 {
     struct uwsc_client *cl = NULL;
     const char *path = "/";
@@ -622,7 +627,7 @@ struct uwsc_client *uwsc_new(struct ev_loop *loop, const char *url, int ping_int
     buffer_set_persistent_size(&cl->rb, UWSC_BUFFER_PERSISTENT_SIZE);
     buffer_set_persistent_size(&cl->wb, UWSC_BUFFER_PERSISTENT_SIZE);
 
-    uwsc_handshake(cl, host, port, path);
+    uwsc_handshake(cl, host, port, path, extra_header);
     
     return cl;
 

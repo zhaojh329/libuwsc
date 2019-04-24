@@ -135,7 +135,7 @@ int main(int argc, char **argv)
 
 	uwsc_log_info("Libuwsc: %s\n", UWSC_VERSION_STRING);
 
-    cl = uwsc_new(loop, url, ping_interval);
+    cl = uwsc_new(loop, url, ping_interval, NULL);
     if (!cl)
         return -1;
 
