@@ -631,7 +631,7 @@ int uwsc_init(struct uwsc_client *cl, struct ev_loop *loop, const char *url,
     ev_io_init(&cl->iow, uwsc_io_write_cb, sock, EV_WRITE);
 
     ev_io_init(&cl->ior, uwsc_io_read_cb, sock, EV_READ);
-    ev_io_start(loop, &cl->ior);
+    ev_io_start(cl->loop, &cl->ior);
 
     ev_timer_init(&cl->timer, uwsc_timer_cb, 0.0, 1.0);
     ev_timer_start(cl->loop, &cl->timer);
