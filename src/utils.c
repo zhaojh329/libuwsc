@@ -51,6 +51,9 @@ int parse_url(const char *url, char *host, int host_len,
     const char *host_pos;
     int hl = 0;
 
+    if (!url)
+        return -1;
+
     if (!strncmp(url, "ws://", 5)) {
         *ssl = false;
         url += 5;
