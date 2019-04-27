@@ -615,6 +615,7 @@ int uwsc_init(struct uwsc_client *cl, struct ev_loop *loop, const char *url,
     cl->send_ex = uwsc_send_ex;
     cl->send_close = uwsc_send_close;
     cl->ping = uwsc_ping;
+    cl->free = uwsc_free;
     cl->start_time = ev_now(cl->loop);
     cl->ping_interval = ping_interval;
 

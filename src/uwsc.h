@@ -108,6 +108,7 @@ struct uwsc_client {
     int (*send_ex)(struct uwsc_client *cl, int op, int num, ...);
     int (*send_close)(struct uwsc_client *cl, int code, const char *reason);
     void (*ping)(struct uwsc_client *cl);
+    void (*free)(struct uwsc_client *cl);
 };
 
 /*
