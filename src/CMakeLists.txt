@@ -9,7 +9,7 @@ set(UWSC_VERSION_PATCH 2)
 # Check the third party Libraries
 find_package(Libev REQUIRED)
 
-include_directories(${CMAKE_CURRENT_BINARY_DIR} ${LIBEV_INCLUDE_DIR})
+include_directories(${CMAKE_SOURCE_DIR}/src ${CMAKE_CURRENT_BINARY_DIR} ${LIBEV_INCLUDE_DIR})
 
 set(EXTRA_LIBS ${LIBEV_LIBRARY} dl)
 set(SOURCE_FILES uwsc.c log.c utils.c buffer.c sha1.c base64.c ssl.c)
@@ -96,6 +96,8 @@ target_link_libraries(uwsc_s ${EXTRA_LIBS})
 
 # configure a header file to pass some of the CMake settings to the source code
 configure_file(${CMAKE_CURRENT_SOURCE_DIR}/config.h.in ${CMAKE_CURRENT_BINARY_DIR}/config.h)
+
+add_subdirectory(lua)
 
 install(
     FILES
