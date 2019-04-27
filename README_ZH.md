@@ -18,19 +18,28 @@
 [openssl]: https://github.com/openssl/openssl
 [mbedtls(polarssl)]: https://github.com/ARMmbed/mbedtls
 [cyaSSl(Wolfssl)]: https://github.com/wolfSSL/wolfssl
+[lua-ev]: https://github.com/brimworks/lua-ev
 
 一个轻量的针对嵌入式Linux的基于[libev]的WebSocket客户端C库。
+提供Lua绑定。
 
-`请保持关注以获取最新的项目动态`
 
 # 我为什么要选择libev？
 libev尝试追随UNIX工具箱哲学，一次只干一件事，每次都做到最好。
+
+# 特性
+* 轻量 - 35KB（使用glibc,stripped）
+* 全异步 - 使用[libev]作为其事件后端
+* 支持SSL - OpenSSL, mbedtls and CyaSSl(wolfssl)
+* 代码结构清晰，通俗易懂，亦适合学习
+* Lua绑定
 
 # 依赖
 * [libev]
 * [openssl] - 如果你选择openssl作为你的SSL后端
 * [mbedTls(polarssl)] - 如果你选择mbedtls作为你的SSL后端
 * [cyassl(wolfssl)] - 如果你选择wolfssl作为你的SSL后端
+* [lua-ev] - 如果你使用Lua
 
 # 安装依赖软件
 

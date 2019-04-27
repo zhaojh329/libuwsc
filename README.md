@@ -18,19 +18,28 @@
 [openssl]: https://github.com/openssl/openssl
 [mbedtls(polarssl)]: https://github.com/ARMmbed/mbedtls
 [CyaSSl(wolfssl)]: https://github.com/wolfSSL/wolfssl
+[lua-ev]: https://github.com/brimworks/lua-ev
 
 A Lightweight and fully asynchronous WebSocket client library based on [libev] for Embedded Linux.
+And provide Lua-binding.
 
-`Keep Watching for More Actions on This Space`
 
 # Why should I choose libev?
  libev tries to follow the UNIX toolbox philosophy of doing one thing only, as good as possible.
+
+# Features
+* Lightweight - 35KB（Using glibc,stripped）
+* Fully asynchronous - Use [libev] as its event backend
+* Support ssl - OpenSSL, mbedtls and CyaSSl(wolfssl)
+* Code structure is concise and understandable, also suitable for learning
+* Lua-binding
 
 # Dependencies
 * [libev]
 * [openssl] - If you choose openssl as your SSL backend
 * [mbedtls(polarssl)] - If you choose mbedtls as your SSL backend
 * [cyassl(wolfssl)] - If you choose wolfssl as your SSL backend
+* [lua-ev] - If you use Lua
 
 # Install dependent packages
 
