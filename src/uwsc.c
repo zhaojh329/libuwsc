@@ -563,7 +563,25 @@ static void uwsc_timer_cb(struct ev_loop *loop, struct ev_timer *w, int revents)
 struct uwsc_client *uwsc_new(struct ev_loop *loop, const char *url,
     int ping_interval, const char *extra_header)
 {
-    struct uwsc_client *cl = NULL;
+    struct uwsc_client *cl;
+
+    cl = malloc(sizeof(struct uwsc_client));
+    if (!cl) {
+        uwsc_log_err("malloc failed: %s\n", strerror(errno));
+        return NULL;
+    }
+
+    if (uwsc_init(cl, loop, url, ping_interval, extra_header) < 0) {
+        free(cl);
+        return NULL;
+    }
+
+    return cl;
+}
+
+int uwsc_init(struct uwsc_client *cl, struct ev_loop *loop, const char *url,
+    int ping_interval, const char *extra_header)
+{
     const char *path = "/";
     char host[256] = "";
     bool inprogress;
@@ -572,39 +590,32 @@ struct uwsc_client *uwsc_new(struct ev_loop *loop, const char *url,
     bool ssl;
     int eai;
 
+    memset(cl, 0, sizeof(struct uwsc_client));
+
     if (parse_url(url, host, sizeof(host), &port, &path, &ssl) < 0) {
         uwsc_log_err("Invalid url\n");
-        return NULL;
+        return -1;
     }
 
     sock = tcp_connect(host, port, SOCK_NONBLOCK | SOCK_CLOEXEC, &inprogress, &eai);
     if (sock < 0) {
         uwsc_log_err("tcp_connect failed: %s\n", strerror(errno));
-        return NULL;
+        return -1;
     } else if (sock == 0) {
         uwsc_log_err("tcp_connect failed: %s\n", gai_strerror(eai));
-        return NULL;
-    }
-
-    cl = calloc(1, sizeof(struct uwsc_client));
-    if (!cl) {
-        uwsc_log_err("calloc failed: %s\n", strerror(errno));
-        goto err;
+        return -1;
     }
 
     if (!inprogress)
         cl->state = CLIENT_STATE_HANDSHAKE;
 
-    if (!loop)
-        loop = EV_DEFAULT;
-
-    cl->loop = loop;
+    cl->loop = loop ? loop : EV_DEFAULT;
     cl->sock = sock;
     cl->send = uwsc_send;
     cl->send_ex = uwsc_send_ex;
     cl->send_close = uwsc_send_close;
     cl->ping = uwsc_ping;
-    cl->start_time = ev_now(loop);
+    cl->start_time = ev_now(cl->loop);
     cl->ping_interval = ping_interval;
 
     if (ssl) {
@@ -612,7 +623,8 @@ struct uwsc_client *uwsc_new(struct ev_loop *loop, const char *url,
         uwsc_ssl_init((struct uwsc_ssl_ctx **)&cl->ssl, cl->sock);
 #else
         uwsc_log_err("SSL is not enabled at compile\n");
-        goto err;
+        uwsc_free(cl);
+        return -1;
 #endif
     }
 
@@ -628,15 +640,7 @@ struct uwsc_client *uwsc_new(struct ev_loop *loop, const char *url,
     buffer_set_persistent_size(&cl->wb, UWSC_BUFFER_PERSISTENT_SIZE);
 
     uwsc_handshake(cl, host, port, path, extra_header);
-    
-    return cl;
 
-err:
-    if (sock > 0)
-        close(sock);
-
-    if (cl)
-        free(cl);
-
-    return NULL;
+    return 0;
 }
+

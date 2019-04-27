@@ -120,4 +120,7 @@ struct uwsc_client {
 struct uwsc_client *uwsc_new(struct ev_loop *loop, const char *url,
     int ping_interval, const char *extra_header);
 
+int uwsc_init(struct uwsc_client *cl, struct ev_loop *loop, const char *url,
+    int ping_interval, const char *extra_header);
+
 #endif
