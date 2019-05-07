@@ -3,7 +3,7 @@ find_package(Lua)
 set(UWSC_LUA_SUPPORT_DEFAULT "ON")
 
 if (NOT LUA_FOUND)
-	set(BUILD_LUA_DEFAULT "OFF")
+	set(UWSC_LUA_SUPPORT_DEFAULT "OFF")
 endif (NOT LUA_FOUND)
 
 option(UWSC_LUA_SUPPORT "Enable build of Lua module" ${UWSC_LUA_SUPPORT_DEFAULT})
