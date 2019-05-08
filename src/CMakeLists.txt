@@ -9,10 +9,10 @@ set(UWSC_VERSION_PATCH 2)
 # Check the third party Libraries
 find_package(Libev REQUIRED)
 
-include_directories(${CMAKE_SOURCE_DIR}/src ${CMAKE_CURRENT_BINARY_DIR} ${LIBEV_INCLUDE_DIR})
+include_directories(${CMAKE_CURRENT_SOURCE_DIR} ${CMAKE_CURRENT_SOURCE_DIR}/buffer ${CMAKE_CURRENT_BINARY_DIR} ${LIBEV_INCLUDE_DIR})
 
 set(EXTRA_LIBS ${LIBEV_LIBRARY} dl)
-set(SOURCE_FILES uwsc.c log.c utils.c buffer.c sha1.c base64.c ssl.c)
+set(SOURCE_FILES uwsc.c log.c utils.c buffer/buffer.c sha1.c base64.c ssl.c)
 
 set(UWSC_SSL_SUPPORT_CONFIG 1)
 option(UWSC_SSL_SUPPORT "SSL support" ON)
@@ -101,13 +101,13 @@ add_subdirectory(lua)
 
 install(
     FILES
-	    ${CMAKE_CURRENT_BINARY_DIR}/config.h
-        ${CMAKE_CURRENT_SOURCE_DIR}/log.h
-	    ${CMAKE_CURRENT_SOURCE_DIR}/uwsc.h
-        ${CMAKE_CURRENT_SOURCE_DIR}/buffer.h
-        ${CMAKE_CURRENT_SOURCE_DIR}/ssl.h
+        log.h
+        uwsc.h
+        ssl.h
+        buffer/buffer.h
+        ${CMAKE_CURRENT_BINARY_DIR}/config.h
     DESTINATION
-    	include/uwsc
+        include/uwsc
 )
 
 install(
