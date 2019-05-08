@@ -30,6 +30,4 @@
 int b64_encode(const void *_src, size_t srclength,
            void *dest, size_t targsize);
 
-int b64_decode(const void *_src, void *dest, size_t targsize);
-
 #endif
