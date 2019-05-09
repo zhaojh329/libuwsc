@@ -104,6 +104,7 @@ install(
         log.h
         uwsc.h
         ssl.h
+        utils.h
         buffer/buffer.h
         ${CMAKE_CURRENT_BINARY_DIR}/config.h
     DESTINATION
