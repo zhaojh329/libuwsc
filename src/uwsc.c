@@ -274,7 +274,7 @@ static void uwsc_parse(struct uwsc_client *cl)
             return;
 
         if (unlikely(cl->state < CLIENT_STATE_PARSE_MSG_HEAD)) {
-            char *version, *status_code, *summary;
+            char *version, *status_code;
             char *p, *data = buffer_data(rb);
 
             p = memmem(data, data_len, "\r\n\r\n", 4);
@@ -283,8 +283,7 @@ static void uwsc_parse(struct uwsc_client *cl)
             p[0] = '\0';
 
             version = strtok(data, " ");
-            status_code = strtok(NULL, " ");
-            summary = strtok(NULL, "\r\n");
+            status_code = strtok(NULL, "\r\n");
 
             if (!version || strcmp(version, "HTTP/1.1")) {
                 err = UWSC_ERROR_INVALID_HEADER;
@@ -292,11 +291,6 @@ static void uwsc_parse(struct uwsc_client *cl)
             }
 
             if (!status_code || atoi(status_code) != 101) {
-                err = UWSC_ERROR_INVALID_HEADER;
-                break;
-            }
-
-            if (!summary) {
                 err = UWSC_ERROR_INVALID_HEADER;
                 break;
             }
