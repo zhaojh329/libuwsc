@@ -161,3 +161,50 @@ free_addrinfo:
     freeaddrinfo(result);
     return sock;
 }
+
+/* reference from https://tools.ietf.org/html/rfc4648#section-4 */
+int b64_encode(const void *src, size_t srclen, void *dest, size_t destsize)
+{
+    char *Base64 =
+        "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    const uint8_t *input = src;
+    char *output = dest;
+
+    while (srclen > 0) {
+        int i0 = input[0] >> 2;
+		int skip = 1;
+
+        if (destsize < 5)
+            return -1;
+
+        *output++ = Base64[i0];
+
+        if (srclen > 1) {
+            int i1 = ((input[0] & 0x3) << 4) + (input[1] >> 4);
+            *output++ = Base64[i1];
+            if (srclen > 2) {
+                int i2 = ((input[1] & 0xF) << 2) + (input[2] >> 6);
+                int i3 = input[2] & 0x3F;
+                *output++ = Base64[i2];
+                *output++ = Base64[i3];
+                skip = 3;
+            } else {
+                *output++ = Base64[i1];
+                *output++ = '=';
+                skip = 2;
+            }
+        } else {
+            int i1 = (input[0] & 0x3) << 4;
+            *output++ = Base64[i1];
+            *output++ = '=';
+            *output++ = '=';
+        }
+
+        input += skip;
+        srclen -= skip;
+        destsize -= 4;
+    }
+
+    *output++ = 0;
+    return output - (char *)dest - 1;
+}

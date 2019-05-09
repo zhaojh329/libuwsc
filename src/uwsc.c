@@ -35,7 +35,6 @@
 #include "uwsc.h"
 #include "sha1.h"
 #include "utils.h"
-#include "base64.h"
 
 static void uwsc_free(struct uwsc_client *cl)
 {

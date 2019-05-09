@@ -45,4 +45,6 @@ int parse_url(const char *url, char *host, int host_len,
 
 int tcp_connect(const char *host, int port, int flags, bool *inprogress, int *eai);
 
+int b64_encode(const void *src, size_t srclen, void *dest, size_t destsize);
+
 #endif
