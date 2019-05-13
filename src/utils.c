@@ -189,7 +189,8 @@ int b64_encode(const void *src, size_t srclen, void *dest, size_t destsize)
                 *output++ = Base64[i3];
                 skip = 3;
             } else {
-                *output++ = Base64[i1];
+                int i2 = ((input[1] & 0xF) << 2);
+                *output++ = Base64[i2];
                 *output++ = '=';
                 skip = 2;
             }
