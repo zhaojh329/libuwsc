@@ -4,7 +4,7 @@ add_definitions(-O -Wall -Werror --std=gnu99 -D_GNU_SOURCE)
 # The version number.
 set(UWSC_VERSION_MAJOR 3)
 set(UWSC_VERSION_MINOR 3)
-set(UWSC_VERSION_PATCH 0)
+set(UWSC_VERSION_PATCH 1)
 
 # Check the third party Libraries
 find_package(Libev REQUIRED)
