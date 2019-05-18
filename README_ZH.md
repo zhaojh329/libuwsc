@@ -45,16 +45,13 @@ libev尝试追随UNIX工具箱哲学，一次只干一件事，每次都做到�
 
     sudo apt install libev-dev libssl-dev
 
-# 配置
-查看支持哪些配置选项
-
-	~/libuwsc/$ mkdir build && cd build
-	~/libuwsc/build$ cmake .. -L
-	~/libuwsc/build$ cmake .. -LH
-
 # 编译和安装
 
-	~/libuwsc/build$ make && sudo make install
+	git clone --recursive https://github.com/zhaojh329/libuwsc.git
+	cd libuwsc
+	mkdir build && cd build
+	cmake ..
+	make && sudo make install
 
 # 安装到OpenWRT
 

@@ -45,16 +45,13 @@ And provide Lua-binding.
 
     sudo apt int libev-dev libssl-dev
 
-# Configure
-See which configuration are supported
-
-	~/libuwsc/$ mkdir build && cd build
-	~/libuwsc/build$ cmake .. -L
-	~/libuwsc/build$ cmake .. -LH
-
 # Build and install
 
-	~/libuwsc/build$ make && sudo make install
+	git clone --recursive https://github.com/zhaojh329/libuwsc.git
+	cd libuwsc
+	mkdir build && cd build
+	cmake ..
+	make && sudo make install
 	
 # Install on OpenWrt
 
