@@ -65,3 +65,6 @@ libev尝试追随UNIX工具箱哲学，一次只干一件事，每次都做到�
 如果你想帮助[libuwsc](https://github.com/zhaojh329/libuwsc)变得更好，请参考
 [CONTRIBUTING_ZH.md](https://github.com/zhaojh329/libuwsc/blob/master/CONTRIBUTING_ZH.md)。
 
+# 技术交流
+QQ群：153530783
+
