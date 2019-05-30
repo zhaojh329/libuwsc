@@ -1,0 +1,13 @@
+language: c
+
+os:
+  - linux
+
+before_install:
+  - sudo apt-get -qq update
+  - sudo apt-get install -y lua5.1 liblua5.1-0-dev libssl-dev libev-dev
+
+script:
+  - mkdir build && cd build
+  - cmake ..
+  - make && sudo make install

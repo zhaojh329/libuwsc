@@ -8,11 +8,14 @@
 [6]: https://github.com/zhaojh329/libuwsc/issues/new
 [7]: https://img.shields.io/badge/release-3.3.1-blue.svg?style=plastic
 [8]: https://github.com/zhaojh329/libuwsc/releases
+[9]: https://travis-ci.org/zhaojh329/libuwsc.svg?branch=master
+[10]: https://travis-ci.org/zhaojh329/libuwsc
 
 [![license][1]][2]
 [![PRs Welcome][3]][4]
 [![Issue Welcome][5]][6]
 [![Release Version][7]][8]
+[![Build Status][9]][10]
 
 [libev]: http://software.schmorp.de/pkg/libev.html
 [openssl]: https://github.com/openssl/openssl
