@@ -92,7 +92,7 @@ int uwsc_ssl_init(struct uwsc_ssl_ctx **ctx, int sock)
     mbedtls_ssl_conf_rng(&c->cfg, mbedtls_ctr_drbg_random, &c->drbg);
 
     mbedtls_ssl_set_bio(&c->ssl, &c->net, mbedtls_net_send,
-        mbedtls_net_recv, mbedtls_net_recv_timeout);
+        mbedtls_net_recv, NULL);
 
     mbedtls_ssl_setup(&c->ssl, &c->cfg);
 
