@@ -98,7 +98,11 @@ int uwsc_ssl_init(struct uwsc_ssl_ctx **ctx, int sock)
 
     c->net.fd = sock;
 #else
-#if OPENSSL_VERSION_NUMBER < 0x10100000L
+#if UHTTPD_HAVE_WOLFSSL
+    wolfSSL_Init();
+
+    c->ctx = SSL_CTX_new(TLSv1_2_client_method());
+#elif OPENSSL_VERSION_NUMBER < 0x10100000L
     SSL_library_init();
     SSL_load_error_strings();
 
@@ -133,7 +137,7 @@ int uwsc_ssl_handshake(struct uwsc_ssl_ctx *ctx)
         int err = SSL_get_error(ctx->ssl, ret);
         if (err == SSL_ERROR_WANT_READ || err == SSL_ERROR_WANT_WRITE)
             return 0;
-        uwsc_log_err("%s\n", ERR_error_string(err, NULL));
+        uwsc_log_err("%s\n", ERR_reason_error_string(err));
         return -1;
     }
 #endif
@@ -180,7 +184,7 @@ int uwsc_ssl_read(int fd, void *buf, size_t count, void *arg)
         int err = SSL_get_error(ctx->ssl, ret);
         if (err == SSL_ERROR_WANT_READ)
             return P_FD_PENDING;
-        uwsc_log_err("%s\n", ERR_error_string(err, NULL));
+        uwsc_log_err("%s\n", ERR_reason_error_string(err));
         return P_FD_ERR;
     }
 #endif
@@ -204,7 +208,7 @@ int uwsc_ssl_write(int fd, void *buf, size_t count, void *arg)
         int err = SSL_get_error(ctx->ssl, ret);
         if (err == SSL_ERROR_WANT_WRITE)
             return P_FD_PENDING;
-        uwsc_log_err("%s\n", ERR_error_string(err, NULL));
+        uwsc_log_err("%s\n", ERR_reason_error_string(err));
         return P_FD_ERR;
     }
 #endif
