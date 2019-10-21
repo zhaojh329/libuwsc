@@ -34,7 +34,7 @@
 
 struct uwsc_ssl_ctx;
 
-int uwsc_ssl_init(struct uwsc_ssl_ctx **ctx, int sock);
+int uwsc_ssl_init(struct uwsc_ssl_ctx **ctx, int sock, char *host);
 int uwsc_ssl_handshake(struct uwsc_ssl_ctx *ctx);
 void uwsc_ssl_free(struct uwsc_ssl_ctx *ctx);
 

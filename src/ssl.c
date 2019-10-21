@@ -65,7 +65,7 @@ struct uwsc_ssl_ctx {
 
 #endif
 
-int uwsc_ssl_init(struct uwsc_ssl_ctx **ctx, int sock)
+int uwsc_ssl_init(struct uwsc_ssl_ctx **ctx, int sock, char *host)
 {
     struct uwsc_ssl_ctx *c = calloc(1, sizeof(struct uwsc_ssl_ctx));
 
@@ -93,6 +93,7 @@ int uwsc_ssl_init(struct uwsc_ssl_ctx **ctx, int sock)
 
     mbedtls_ssl_set_bio(&c->ssl, &c->net, mbedtls_net_send,
         mbedtls_net_recv, NULL);
+    mbedtls_ssl_set_hostname(&c->ssl, host);
 
     mbedtls_ssl_setup(&c->ssl, &c->cfg);
 
@@ -111,8 +112,8 @@ int uwsc_ssl_init(struct uwsc_ssl_ctx **ctx, int sock)
     c->ctx = SSL_CTX_new(TLS_client_method());
 #endif
     SSL_CTX_set_verify(c->ctx, SSL_VERIFY_NONE, NULL);
-
     c->ssl = SSL_new(c->ctx);
+    SSL_set_tlsext_host_name(c->ssl, host);
     SSL_set_fd(c->ssl, sock);
 #endif
 

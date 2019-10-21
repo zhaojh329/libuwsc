@@ -616,10 +616,9 @@ int uwsc_init(struct uwsc_client *cl, struct ev_loop *loop, const char *url,
     cl->free = uwsc_free;
     cl->start_time = ev_now(cl->loop);
     cl->ping_interval = ping_interval;
-
     if (ssl) {
 #if (UWSC_SSL_SUPPORT)
-        uwsc_ssl_init((struct uwsc_ssl_ctx **)&cl->ssl, cl->sock);
+        uwsc_ssl_init((struct uwsc_ssl_ctx **)&cl->ssl, cl->sock, host);
 #else
         uwsc_log_err("SSL is not enabled at compile\n");
         uwsc_free(cl);
