@@ -46,7 +46,7 @@ And provide Lua-binding.
 
 # Install dependent packages
 
-    sudo apt int libev-dev libssl-dev
+    sudo apt install libev-dev libssl-dev
 
 # Build and install
 
