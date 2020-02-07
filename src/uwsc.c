@@ -339,10 +339,10 @@ static void uwsc_io_read_cb(struct ev_loop *loop, struct ev_io *w, int revents)
 
 #if UWSC_SSL_SUPPORT
     if (cl->ssl)
-        ret = buffer_put_fd(rb, w->fd, -1, &eof, uwsc_ssl_read, cl->ssl);
+        ret = buffer_put_fd_ex(rb, w->fd, -1, &eof, uwsc_ssl_read, cl->ssl);
     else
 #endif
-        ret = buffer_put_fd(rb, w->fd, -1, &eof, NULL, NULL);
+        ret = buffer_put_fd(rb, w->fd, -1, &eof);
 
     if (ret < 0) {
         uwsc_error(cl, UWSC_ERROR_IO, "read error");
@@ -387,10 +387,10 @@ static void uwsc_io_write_cb(struct ev_loop *loop, struct ev_io *w, int revents)
 
 #if UWSC_SSL_SUPPORT
     if (cl->ssl)
-        ret = buffer_pull_to_fd(&cl->wb, w->fd, buffer_length(&cl->wb), uwsc_ssl_write, cl->ssl);
+        ret = buffer_pull_to_fd_ex(&cl->wb, w->fd, buffer_length(&cl->wb), uwsc_ssl_write, cl->ssl);
     else
 #endif
-        ret = buffer_pull_to_fd(&cl->wb, w->fd, buffer_length(&cl->wb), NULL, NULL);
+        ret = buffer_pull_to_fd(&cl->wb, w->fd, buffer_length(&cl->wb));
 
     if (ret < 0) {
         uwsc_error(cl, UWSC_ERROR_IO, "write error");
@@ -633,9 +633,6 @@ int uwsc_init(struct uwsc_client *cl, struct ev_loop *loop, const char *url,
 
     ev_timer_init(&cl->timer, uwsc_timer_cb, 0.0, 1.0);
     ev_timer_start(cl->loop, &cl->timer);
-
-    buffer_set_persistent_size(&cl->rb, UWSC_BUFFER_PERSISTENT_SIZE);
-    buffer_set_persistent_size(&cl->wb, UWSC_BUFFER_PERSISTENT_SIZE);
 
     uwsc_handshake(cl, host, port, path, extra_header);
 
