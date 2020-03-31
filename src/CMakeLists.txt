@@ -14,6 +14,13 @@ include_directories(${CMAKE_CURRENT_SOURCE_DIR} ${CMAKE_CURRENT_SOURCE_DIR}/buff
 set(EXTRA_LIBS ${LIBEV_LIBRARY} dl)
 set(SOURCE_FILES uwsc.c log.c utils.c buffer/buffer.c sha1.c ssl.c)
 
+option(BUILD_SHARED_LIBS "Build shared library" ON)
+option(BUILD_STATIC_LIBS "Build static library" ON)
+
+if(NOT BUILD_SHARED_LIBS AND NOT BUILD_STATIC_LIBS)
+    message(FATAL_ERROR "BUILD_SHARED_LIBS and BUILD_STATIC_LIBS can't be OFF at the same time, please select at least one of them")
+endif()
+
 set(UWSC_SSL_SUPPORT_CONFIG 1)
 option(UWSC_SSL_SUPPORT "SSL support" ON)
 
@@ -89,13 +96,25 @@ else()
     endif()
 endif()
 
-add_library(uwsc SHARED ${SOURCE_FILES})
-set_target_properties(uwsc PROPERTIES VERSION ${UWSC_VERSION_MAJOR}.${UWSC_VERSION_MINOR}.${UWSC_VERSION_PATCH})
-target_link_libraries(uwsc ${EXTRA_LIBS})
+if(BUILD_SHARED_LIBS)
+    add_library(uwsc SHARED ${SOURCE_FILES})
+    set_target_properties(uwsc PROPERTIES VERSION ${UWSC_VERSION_MAJOR}.${UWSC_VERSION_MINOR}.${UWSC_VERSION_PATCH})
+    target_link_libraries(uwsc ${EXTRA_LIBS})
+    install(
+        TARGETS uwsc
+        LIBRARY DESTINATION lib
+    )
+endif()
 
-add_library(uwsc_s STATIC ${SOURCE_FILES})
-set_target_properties(uwsc_s PROPERTIES OUTPUT_NAME uwsc)
-target_link_libraries(uwsc_s ${EXTRA_LIBS})
+if(BUILD_STATIC_LIBS)
+    add_library(uwsc_s STATIC ${SOURCE_FILES})
+    set_target_properties(uwsc_s PROPERTIES OUTPUT_NAME uwsc)
+    target_link_libraries(uwsc_s ${EXTRA_LIBS})
+    install(
+        TARGETS uwsc_s
+        ARCHIVE DESTINATION lib
+    )
+endif()
 
 # configure a header file to pass some of the CMake settings to the source code
 configure_file(${CMAKE_CURRENT_SOURCE_DIR}/config.h.in ${CMAKE_CURRENT_BINARY_DIR}/config.h)
@@ -112,12 +131,6 @@ install(
         ${CMAKE_CURRENT_BINARY_DIR}/config.h
     DESTINATION
         include/uwsc
-)
-
-install(
-    TARGETS uwsc uwsc_s
-    LIBRARY DESTINATION lib
-    ARCHIVE DESTINATION lib
 )
 
 message(STATUS "UWSC_VERSION: ${UWSC_VERSION_MAJOR}.${UWSC_VERSION_MINOR}.${UWSC_VERSION_PATCH}")
