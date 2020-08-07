@@ -1,4 +1,4 @@
-include_directories(${CMAKE_SOURCE_DIR}/src ${CMAKE_SOURCE_DIR}/src/buffer ${CMAKE_BINARY_DIR}/src ${LIBEV_INCLUDE_DIR})
+include_directories(${libuwsc_SOURCE_DIR}/src ${libuwsc_SOURCE_DIR}/src/buffer ${libuwsc_BINARY_DIR}/src ${LIBEV_INCLUDE_DIR})
 
 add_executable(example example.c)
 if(BUILD_SHARED_LIBS)
