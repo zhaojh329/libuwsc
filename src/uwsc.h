@@ -33,6 +33,10 @@
 
 #define UWSC_MAX_CONNECT_TIME       5  /* second */
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /* WebSocket close status codes defined in RFC 6455, section 11.7 */
 enum {
     UWSC_CLOSE_STATUS_NORMAL                = 1000,
@@ -127,4 +131,8 @@ struct uwsc_client *uwsc_new(struct ev_loop *loop, const char *url,
 int uwsc_init(struct uwsc_client *cl, struct ev_loop *loop, const char *url,
     int ping_interval, const char *extra_header);
 
+#endif
+
+#ifdef __cplusplus
+}
 #endif
