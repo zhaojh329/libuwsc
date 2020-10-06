@@ -100,6 +100,7 @@ struct uwsc_client {
     int ntimeout;           /* Number of timeouts */
     char key[256];          /* Sec-WebSocket-Key */
     void *ssl;              /* Context wrap of openssl, wolfssl and mbedtls */
+    void *ext;              /* User data */
 
     void (*onopen)(struct uwsc_client *cl);
     void (*onmessage)(struct uwsc_client *cl, void *data, size_t len, bool binary);
