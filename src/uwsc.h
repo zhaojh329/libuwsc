@@ -31,8 +31,11 @@
 #include "config.h"
 #include "buffer.h"
 
-#define HTTP_HEAD_LIMIT             4096
 #define UWSC_MAX_CONNECT_TIME       5  /* second */
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 /* WebSocket close status codes defined in RFC 6455, section 11.7 */
 enum {
@@ -101,9 +104,9 @@ struct uwsc_client {
     int ntimeout;           /* Number of timeouts */
     char key[256];          /* Sec-WebSocket-Key */
     void *ssl;              /* Context wrap of openssl, wolfssl and mbedtls */
+    void *ext;              /* User data */
 
     void (*onopen)(struct uwsc_client *cl);
-    void (*set_ping_interval)(struct uwsc_client *cl, int interval);
     void (*onmessage)(struct uwsc_client *cl, void *data, size_t len, bool binary);
     void (*onerror)(struct uwsc_client *cl, int err, const char *msg);
     void (*onclose)(struct uwsc_client *cl, int code, const char *reason);
@@ -128,4 +131,8 @@ struct uwsc_client *uwsc_new(struct ev_loop *loop, const char *url,
 int uwsc_init(struct uwsc_client *cl, struct ev_loop *loop, const char *url,
     int ping_interval, const char *extra_header);
 
+#endif
+
+#ifdef __cplusplus
+}
 #endif
