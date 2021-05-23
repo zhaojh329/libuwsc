@@ -178,7 +178,7 @@ static bool dispach_message(struct uwsc_client *cl)
         break;
 
     default:
-        uwsc_log_err("unknown opcode - %d\n", frame->opcode);
+        log_err("unknown opcode - %d\n", frame->opcode);
         uwsc_send_close(cl, UWSC_CLOSE_STATUS_PROTOCOL_ERR, "unknown opcode");
         break;
     }
@@ -250,7 +250,7 @@ static int parse_http_header(struct uwsc_client *cl)
 
             /* verify the value of Sec-WebSocket-Accept */
             if (strcmp(v, my)) {
-                uwsc_log_err("verify Sec-WebSocket-Accept failed\n");
+                log_err("verify Sec-WebSocket-Accept failed\n");
                 return -1;
             }
             has_sec_webSocket_accept = true;
@@ -541,7 +541,7 @@ static void uwsc_timer_cb(struct ev_loop *loop, struct ev_timer *w, int revents)
             return;
 
         cl->wait_pong = false;
-        uwsc_log_err("ping timeout %d\n", ++cl->ntimeout);
+        log_err("ping timeout %d\n", ++cl->ntimeout);
         if (cl->ntimeout > 2) {
             uwsc_error(cl, UWSC_ERROR_PING_TIMEOUT, "ping timeout");
             return;
@@ -565,7 +565,7 @@ struct uwsc_client *uwsc_new(struct ev_loop *loop, const char *url,
 
     cl = malloc(sizeof(struct uwsc_client));
     if (!cl) {
-        uwsc_log_err("malloc failed: %s\n", strerror(errno));
+        log_err("malloc failed: %s\n", strerror(errno));
         return NULL;
     }
 
@@ -591,16 +591,16 @@ int uwsc_init(struct uwsc_client *cl, struct ev_loop *loop, const char *url,
     memset(cl, 0, sizeof(struct uwsc_client));
 
     if (parse_url(url, host, sizeof(host), &port, &path, &ssl) < 0) {
-        uwsc_log_err("Invalid url\n");
+        log_err("Invalid url\n");
         return -1;
     }
 
     sock = tcp_connect(host, port, SOCK_NONBLOCK | SOCK_CLOEXEC, &inprogress, &eai);
     if (sock < 0) {
-        uwsc_log_err("tcp_connect failed: %s\n", strerror(errno));
+        log_err("tcp_connect failed: %s\n", strerror(errno));
         return -1;
     } else if (sock == 0) {
-        uwsc_log_err("tcp_connect failed: %s\n", gai_strerror(eai));
+        log_err("tcp_connect failed: %s\n", gai_strerror(eai));
         return -1;
     }
 
@@ -620,7 +620,7 @@ int uwsc_init(struct uwsc_client *cl, struct ev_loop *loop, const char *url,
 #if (UWSC_SSL_SUPPORT)
         uwsc_ssl_init((struct uwsc_ssl_ctx **)&cl->ssl, cl->sock, host);
 #else
-        uwsc_log_err("SSL is not enabled at compile\n");
+        log_err("SSL is not enabled at compile\n");
         uwsc_free(cl);
         return -1;
 #endif

@@ -50,7 +50,7 @@ static void uwsc_onopen(struct uwsc_client *cl)
 {
     static struct ev_io stdin_watcher;
 
-    uwsc_log_info("onopen\n");
+    log_info("onopen\n");
 
     stdin_watcher.data = cl;
 
@@ -88,13 +88,13 @@ static void uwsc_onmessage(struct uwsc_client *cl,
 
 static void uwsc_onerror(struct uwsc_client *cl, int err, const char *msg)
 {
-    uwsc_log_err("onerror:%d: %s\n", err, msg);
+    log_err("onerror:%d: %s\n", err, msg);
     ev_break(cl->loop, EVBREAK_ALL);
 }
 
 static void uwsc_onclose(struct uwsc_client *cl, int code, const char *reason)
 {
-    uwsc_log_err("onclose:%d: %s\n", code, reason);
+    log_err("onclose:%d: %s\n", code, reason);
     ev_break(cl->loop, EVBREAK_ALL);
 }
 
@@ -102,7 +102,7 @@ static void signal_cb(struct ev_loop *loop, ev_signal *w, int revents)
 {
     if (w->signum == SIGINT) {
         ev_break(loop, EVBREAK_ALL);
-        uwsc_log_info("Normal quit\n");
+        log_info("Normal quit\n");
     }
 }
 
@@ -138,13 +138,13 @@ int main(int argc, char **argv)
         }
     }
 
-	uwsc_log_info("Libuwsc: %s\n", UWSC_VERSION_STRING);
+	log_info("Libuwsc: %s\n", UWSC_VERSION_STRING);
 
     cl = uwsc_new(loop, url, ping_interval, NULL);
     if (!cl)
         return -1;
 
-	uwsc_log_info("Start connect...\n");
+	log_info("Start connect...\n");
 
     cl->onopen = uwsc_onopen;
     cl->onmessage = uwsc_onmessage;

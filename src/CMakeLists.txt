@@ -9,10 +9,10 @@ set(UWSC_VERSION_PATCH 5)
 # Check the third party Libraries
 find_package(Libev REQUIRED)
 
-include_directories(${CMAKE_CURRENT_SOURCE_DIR} ${CMAKE_CURRENT_SOURCE_DIR}/buffer ${CMAKE_CURRENT_BINARY_DIR} ${LIBEV_INCLUDE_DIR})
+include_directories(${CMAKE_CURRENT_SOURCE_DIR} ${CMAKE_CURRENT_SOURCE_DIR}/buffer ${CMAKE_CURRENT_SOURCE_DIR}/log ${CMAKE_CURRENT_BINARY_DIR} ${LIBEV_INCLUDE_DIR})
 
 set(EXTRA_LIBS ${LIBEV_LIBRARY} dl)
-set(SOURCE_FILES uwsc.c log.c utils.c buffer/buffer.c sha1.c ssl.c)
+set(SOURCE_FILES uwsc.c log/log.c utils.c buffer/buffer.c sha1.c ssl.c)
 
 option(BUILD_SHARED_LIBS "Build shared library" ON)
 option(BUILD_STATIC_LIBS "Build static library" ON)
@@ -123,7 +123,7 @@ add_subdirectory(lua)
 
 install(
     FILES
-        log.h
+        log/log.h
         uwsc.h
         ssl.h
         utils.h

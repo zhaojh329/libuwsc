@@ -70,7 +70,7 @@ int uwsc_ssl_init(struct uwsc_ssl_ctx **ctx, int sock, char *host)
     struct uwsc_ssl_ctx *c = calloc(1, sizeof(struct uwsc_ssl_ctx));
 
     if (!ctx) {
-        uwsc_log_err("calloc failed: %s\n", strerror(errno));
+        log_err("calloc failed: %s\n", strerror(errno));
         return -1;
     }
 
@@ -140,7 +140,7 @@ int uwsc_ssl_handshake(struct uwsc_ssl_ctx *ctx)
         int err = SSL_get_error(ctx->ssl, ret);
         if (err == SSL_ERROR_WANT_READ || err == SSL_ERROR_WANT_WRITE)
             return 0;
-        uwsc_log_err("%s\n", ERR_reason_error_string(err));
+        log_err("%s\n", ERR_reason_error_string(err));
         return -1;
     }
 #endif
@@ -187,7 +187,7 @@ int uwsc_ssl_read(int fd, void *buf, size_t count, void *arg)
         int err = SSL_get_error(ctx->ssl, ret);
         if (err == SSL_ERROR_WANT_READ)
             return P_FD_PENDING;
-        uwsc_log_err("%s\n", ERR_reason_error_string(err));
+        log_err("%s\n", ERR_reason_error_string(err));
         return P_FD_ERR;
     }
 #endif
@@ -211,7 +211,7 @@ int uwsc_ssl_write(int fd, void *buf, size_t count, void *arg)
         int err = SSL_get_error(ctx->ssl, ret);
         if (err == SSL_ERROR_WANT_WRITE)
             return P_FD_PENDING;
-        uwsc_log_err("%s\n", ERR_reason_error_string(err));
+        log_err("%s\n", ERR_reason_error_string(err));
         return P_FD_ERR;
     }
 #endif
