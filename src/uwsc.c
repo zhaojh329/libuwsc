@@ -31,10 +31,17 @@
 #include <netdb.h>
 #include <limits.h>
 
-#include "ssl.h"
 #include "uwsc.h"
 #include "sha1.h"
 #include "utils.h"
+
+#ifdef SSL_SUPPORT
+#include "ssl/ssl.h"
+#endif
+
+#ifdef SSL_SUPPORT
+static struct ssl_context *ssl_ctx;
+#endif
 
 static void uwsc_free(struct uwsc_client *cl)
 {
@@ -44,8 +51,8 @@ static void uwsc_free(struct uwsc_client *cl)
     buffer_free(&cl->rb);
     buffer_free(&cl->wb);
 
-#if UWSC_SSL_SUPPORT
-    uwsc_ssl_free(cl->ssl);
+#ifdef SSL_SUPPORT
+    ssl_session_free(cl->ssl);
 #endif
 
     if (cl->sock > 0)
@@ -317,6 +324,75 @@ static void uwsc_parse(struct uwsc_client *cl)
         uwsc_error(cl, err, "Invalid header");
 }
 
+static int check_socket_state(struct uwsc_client *cl)
+{
+    int err;
+    socklen_t optlen = sizeof(err);
+
+    getsockopt(cl->sock, SOL_SOCKET, SO_ERROR, &err, &optlen);
+    if (err) {
+        uwsc_error(cl, UWSC_ERROR_CONNECT, strerror(err));
+        return -1;
+    }
+
+#ifdef SSL_SUPPORT
+    if (cl->ssl)
+        cl->state = CLIENT_STATE_SSL_HANDSHAKE;
+    else
+#endif
+        cl->state = CLIENT_STATE_HANDSHAKE;
+
+    return 0;
+}
+
+#ifdef SSL_SUPPORT
+static void on_ssl_verify_error(int error, const char *str, void *arg)
+{
+    log_warn("SSL certificate error(%d): %s\n", error, str);
+}
+
+/* -1 error, 0 pending, 1 ok */
+static int ssl_negotiated(struct uwsc_client *cl)
+{
+    char err_buf[128];
+    int ret;
+
+    ret = ssl_connect(cl->ssl, false, on_ssl_verify_error, NULL);
+    if (ret == SSL_PENDING)
+        return 0;
+
+    if (ret == SSL_ERROR) {
+        log_err("ssl connect error(%d): %s\n", ssl_err_code, ssl_strerror(ssl_err_code, err_buf, sizeof(err_buf)));
+        uwsc_error(cl, UWSC_ERROR_SSL_HANDSHAKE, err_buf);
+        return -1;
+    }
+
+    cl->state = CLIENT_STATE_HANDSHAKE;
+
+    return 1;
+}
+
+static int uwsc_ssl_read(int fd, void *buf, size_t count, void *arg)
+{
+    struct uwsc_client *cl = arg;
+    static char err_buf[128];
+    int ret;
+
+    ret = ssl_read(cl->ssl, buf, count);
+    if (ret == SSL_ERROR) {
+        log_err("ssl_read(%d): %s\n", ssl_err_code,
+                ssl_strerror(ssl_err_code, err_buf, sizeof(err_buf)));
+        uwsc_error(cl, UWSC_ERROR_IO, err_buf);
+        return P_FD_ERR;
+    }
+
+    if (ret == SSL_PENDING)
+        return P_FD_PENDING;
+
+    return ret;
+}
+#endif
+
 static void uwsc_io_read_cb(struct ev_loop *loop, struct ev_io *w, int revents)
 {
     struct uwsc_client *cl = container_of(w, struct uwsc_client, ior);
@@ -325,28 +401,28 @@ static void uwsc_io_read_cb(struct ev_loop *loop, struct ev_io *w, int revents)
     int ret;
 
     if (cl->state == CLIENT_STATE_CONNECTING) {
-        int err;
-        socklen_t optlen = sizeof(err);
-
-        getsockopt(w->fd, SOL_SOCKET, SO_ERROR, &err, &optlen);
-        if (err) {
-            uwsc_error(cl, UWSC_ERROR_CONNECT, strerror(err));
+        if (check_socket_state(cl) < 0)
             return;
-        }
-        cl->state = CLIENT_STATE_HANDSHAKE;
-        return;
     }
 
-#if UWSC_SSL_SUPPORT
-    if (cl->ssl)
-        ret = buffer_put_fd_ex(rb, w->fd, -1, &eof, uwsc_ssl_read, cl->ssl);
-    else
-#endif
-        ret = buffer_put_fd(rb, w->fd, -1, &eof);
+    if (cl->ssl) {
+#ifdef SSL_SUPPORT
+        if (unlikely(cl->state == CLIENT_STATE_SSL_HANDSHAKE)) {
+            ret = ssl_negotiated(cl);
+            if (ret <= 0)
+                return;
+        }
 
-    if (ret < 0) {
-        uwsc_error(cl, UWSC_ERROR_IO, "read error");
-        return;
+        ret = buffer_put_fd_ex(rb, w->fd, 4096, &eof, uwsc_ssl_read, cl);
+        if (ret < 0)
+            return;
+#endif
+    } else {
+        ret = buffer_put_fd(rb, w->fd, -1, &eof);
+        if (ret < 0) {
+            uwsc_error(cl, UWSC_ERROR_IO, "read error");
+            return;
+        }
     }
 
     if (eof) {
@@ -364,37 +440,43 @@ static void uwsc_io_write_cb(struct ev_loop *loop, struct ev_io *w, int revents)
 {
     struct uwsc_client *cl = container_of(w, struct uwsc_client, iow);
     int ret;
-
-    if (unlikely(cl->state == CLIENT_STATE_CONNECTING)) {
-#if UWSC_SSL_SUPPORT
-        if (cl->ssl)
-            cl->state = CLIENT_STATE_SSL_HANDSHAKE;
-        else
-#endif
-            cl->state = CLIENT_STATE_HANDSHAKE;
+    
+    if (cl->state == CLIENT_STATE_CONNECTING) {
+        if (check_socket_state(cl) < 0)
+            return;
     }
 
-#if UWSC_SSL_SUPPORT
-    if (unlikely(cl->state == CLIENT_STATE_SSL_HANDSHAKE)) {
-        ret = uwsc_ssl_handshake(cl->ssl);
-        if (ret == 1)
-            cl->state = CLIENT_STATE_HANDSHAKE;
-        else if (ret == -1)
-            uwsc_error(cl, UWSC_ERROR_SSL_HANDSHAKE, "ssl handshake failed");
-        return;
-    }
+    if (cl->ssl) {
+#ifdef SSL_SUPPORT
+        static char err_buf[128];
+        struct buffer *b = &cl->wb;
+
+        if (unlikely(cl->state == CLIENT_STATE_SSL_HANDSHAKE)) {
+            ret = ssl_negotiated(cl);
+            if (ret <= 0)
+                return;
+        }
+
+        ret = ssl_write(cl->ssl, buffer_data(b), buffer_length(b));
+        if (ret == SSL_ERROR) {
+            log_err("ssl_write(%d): %s\n", ssl_err_code,
+                    ssl_strerror(ssl_err_code, err_buf, sizeof(err_buf)));
+            uwsc_error(cl, UWSC_ERROR_IO, err_buf);
+            return;
+        }
+
+        if (ret == SSL_PENDING)
+            return;
+
+        buffer_pull(b, NULL, ret);
 #endif
 
-#if UWSC_SSL_SUPPORT
-    if (cl->ssl)
-        ret = buffer_pull_to_fd_ex(&cl->wb, w->fd, buffer_length(&cl->wb), uwsc_ssl_write, cl->ssl);
-    else
-#endif
+    } else {
         ret = buffer_pull_to_fd(&cl->wb, w->fd, buffer_length(&cl->wb));
-
-    if (ret < 0) {
-        uwsc_error(cl, UWSC_ERROR_IO, "write error");
-        return;
+        if (ret < 0) {
+            uwsc_error(cl, UWSC_ERROR_IO, "write error");
+            return;
+        }
     }
 
     if (buffer_length(&cl->wb) < 1)
@@ -577,6 +659,19 @@ struct uwsc_client *uwsc_new(struct ev_loop *loop, const char *url,
     return cl;
 }
 
+#ifdef SSL_SUPPORT
+#define SSL_CTX_CHECK                                       \
+    do {                                                    \
+        if (!ssl_ctx) {                                     \
+            ssl_ctx = ssl_context_new(false);               \
+            if (!ssl_ctx) {                                 \
+                log_err("SSL context init fail\n");   \
+                return -1;                                  \
+            }                                               \
+        }                                                   \
+    } while (0)
+#endif
+
 int uwsc_init(struct uwsc_client *cl, struct ev_loop *loop, const char *url,
     int ping_interval, const char *extra_header)
 {
@@ -617,8 +712,14 @@ int uwsc_init(struct uwsc_client *cl, struct ev_loop *loop, const char *url,
     cl->start_time = ev_now(cl->loop);
     cl->ping_interval = ping_interval;
     if (ssl) {
-#if (UWSC_SSL_SUPPORT)
-        uwsc_ssl_init((struct uwsc_ssl_ctx **)&cl->ssl, cl->sock, host);
+#ifdef SSL_SUPPORT
+        SSL_CTX_CHECK;
+
+        cl->ssl = ssl_session_new(ssl_ctx, sock);
+        if (!cl->ssl) {
+            log_err("SSL session init fail\n");
+            return -1;
+        }
 #else
         log_err("SSL is not enabled at compile\n");
         uwsc_free(cl);
@@ -639,3 +740,25 @@ int uwsc_init(struct uwsc_client *cl, struct ev_loop *loop, const char *url,
     return 0;
 }
 
+#ifdef SSL_SUPPORT
+int uwsc_load_ca_crt_file(const char *file)
+{
+    SSL_CTX_CHECK;
+
+    return ssl_load_ca_crt_file(ssl_ctx, file);
+}
+
+int uwsc_load_crt_file(const char *file)
+{
+    SSL_CTX_CHECK;
+
+    return ssl_load_crt_file(ssl_ctx, file);
+}
+
+int uwsc_load_key_file(const char *file)
+{
+    SSL_CTX_CHECK;
+
+    return ssl_load_key_file(ssl_ctx, file);
+}
+#endif

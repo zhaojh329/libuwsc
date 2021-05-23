@@ -26,6 +26,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "config.h"
 #include "utils.h"
 #include "uwsc_lua.h"
 

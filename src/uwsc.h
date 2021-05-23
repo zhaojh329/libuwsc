@@ -103,7 +103,7 @@ struct uwsc_client {
     ev_tstamp last_ping;    /* Time stamp of last ping */
     int ntimeout;           /* Number of timeouts */
     char key[256];          /* Sec-WebSocket-Key */
-    void *ssl;              /* Context wrap of openssl, wolfssl and mbedtls */
+    void *ssl;
     void *ext;              /* User data */
 
     void (*onopen)(struct uwsc_client *cl);
@@ -130,6 +130,12 @@ struct uwsc_client *uwsc_new(struct ev_loop *loop, const char *url,
 
 int uwsc_init(struct uwsc_client *cl, struct ev_loop *loop, const char *url,
     int ping_interval, const char *extra_header);
+
+#ifdef SSL_SUPPORT
+int uwsc_load_ca_crt_file(const char *file);
+int uwsc_load_crt_file(const char *file);
+int uwsc_load_key_file(const char *file);
+#endif
 
 #ifdef __cplusplus
 }

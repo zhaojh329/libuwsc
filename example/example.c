@@ -112,6 +112,7 @@ static void usage(const char *prog)
         "      -u url       # ws://localhost:8080/ws\n"
         "                     wss://localhost:8080/ws\n"
         "      -P n      	# Ping interval\n"
+        "      -d           # enable debug messages\n"
         , prog);
     exit(1);
 }
@@ -125,7 +126,7 @@ int main(int argc, char **argv)
     struct uwsc_client *cl;
 	int opt;
 
-    while ((opt = getopt(argc, argv, "u:P:")) != -1) {
+    while ((opt = getopt(argc, argv, "u:P:d:")) != -1) {
         switch (opt) {
         case 'u':
             url = optarg;
@@ -133,6 +134,9 @@ int main(int argc, char **argv)
 		case 'P':
 			ping_interval = atoi(optarg);
 			break;
+        case 'd':
+            log_level(LOG_DEBUG);
+            break;
         default: /* '?' */
             usage(argv[0]);
         }

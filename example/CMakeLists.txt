@@ -1,8 +1,15 @@
-include_directories(${libuwsc_SOURCE_DIR}/src ${libuwsc_SOURCE_DIR}/src/buffer ${libuwsc_SOURCE_DIR}/src/log ${libuwsc_BINARY_DIR}/src ${LIBEV_INCLUDE_DIR})
+set(LIBS ${LIBEV_LIBRARY} uwsc)
+
+if(SSL_SUPPORT)
+    list(APPEND LIBS ${SSL_LIBS})
+endif()
+
+include_directories(
+    ${CMAKE_SOURCE_DIR}/src
+    ${CMAKE_SOURCE_DIR}/src/buffer
+    ${CMAKE_SOURCE_DIR}/src/log
+    ${CMAKE_BINARY_DIR}/src
+    ${LIBEV_INCLUDE_DIR})
 
 add_executable(example example.c)
-if(BUILD_SHARED_LIBS)
-    target_link_libraries(example uwsc ${LIBEV_LIBRARY})
-else()
-    target_link_libraries(example uwsc_s ${LIBEV_LIBRARY})
-endif()
+target_link_libraries(example PRIVATE ${LIBS})

@@ -205,4 +205,3 @@ int b64_encode(const void *src, size_t srclen, void *dest, size_t destsize)
     *output++ = 0;
     return output - (char *)dest - 1;
 }
-

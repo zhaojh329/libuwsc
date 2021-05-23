@@ -4,3 +4,6 @@
 [submodule "src/log"]
 	path = src/log
 	url = https://github.com/zhaojh329/log
+[submodule "src/ssl"]
+	path = src/ssl
+	url = https://github.com/zhaojh329/ssl
