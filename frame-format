@@ -20,7 +20,7 @@ frame format:
      +---------------------------------------------------------------+
 
 Opcode:
-	  0x0 denotes a continuation frame
+      0x0 denotes a continuation frame
 
       0x1 denotes a text frame
 
