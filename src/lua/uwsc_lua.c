@@ -178,7 +178,7 @@ static int uwsc_lua_on(lua_State *L)
     else
         luaL_argcheck(L, false, 2, "available event name: open message error close");
 
-	return 0;
+    return 0;
 }
 
 static int __uwsc_lua_send(lua_State *L, int op)
