@@ -65,7 +65,7 @@ static void uwsc_onopen(struct uwsc_client *cl)
 }
 
 static void uwsc_onmessage(struct uwsc_client *cl,
-	void *data, size_t len, bool binary)
+    void *data, size_t len, bool binary)
 {
     printf("Recv:");
 
@@ -119,21 +119,21 @@ static void usage(const char *prog)
 
 int main(int argc, char **argv)
 {
-	const char *url = "ws://localhost:8080/ws";
+    const char *url = "ws://localhost:8080/ws";
     struct ev_loop *loop = EV_DEFAULT;
     struct ev_signal signal_watcher;
-	int ping_interval = 10;	/* second */
+    int ping_interval = 10;	/* second */
     struct uwsc_client *cl;
-	int opt;
+    int opt;
 
     while ((opt = getopt(argc, argv, "u:P:d:")) != -1) {
         switch (opt) {
         case 'u':
             url = optarg;
             break;
-		case 'P':
-			ping_interval = atoi(optarg);
-			break;
+        case 'P':
+            ping_interval = atoi(optarg);
+            break;
         case 'd':
             log_level(LOG_DEBUG);
             break;
@@ -142,13 +142,13 @@ int main(int argc, char **argv)
         }
     }
 
-	log_info("Libuwsc: %s\n", UWSC_VERSION_STRING);
+    log_info("Libuwsc: %s\n", UWSC_VERSION_STRING);
 
     cl = uwsc_new(loop, url, ping_interval, NULL);
     if (!cl)
         return -1;
 
-	log_info("Start connect...\n");
+    log_info("Start connect...\n");
 
     cl->onopen = uwsc_onopen;
     cl->onmessage = uwsc_onmessage;

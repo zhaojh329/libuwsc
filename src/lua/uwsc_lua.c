@@ -51,8 +51,8 @@ static void uwsc_onmessage(struct uwsc_client *cli, void *data, size_t len, bool
     lua_State *L = cl->L;
 
     lua_rawgeti(L, LUA_REGISTRYINDEX, cl->onmessage_ref);
-	if (!lua_isfunction(L, -1))
-		return;
+    if (!lua_isfunction(L, -1))
+        return;
     
     lua_pushlstring(L, data, len);
     lua_pushboolean(L, binary);
@@ -68,8 +68,8 @@ static void uwsc_onerror(struct uwsc_client *cli, int err, const char *msg)
     cl->connected = false;
 
     lua_rawgeti(L, LUA_REGISTRYINDEX, cl->onerror_ref);
-	if (!lua_isfunction(L, -1))
-		return;
+    if (!lua_isfunction(L, -1))
+        return;
 
     lua_pushinteger(L, err);
     lua_pushstring(L, msg);
@@ -85,8 +85,8 @@ static void uwsc_onclose(struct uwsc_client *cli, int code, const char *reason)
     cl->connected = false;
 
     lua_rawgeti(L, LUA_REGISTRYINDEX, cl->onclose_ref);
-	if (!lua_isfunction(L, -1))
-		return;
+    if (!lua_isfunction(L, -1))
+        return;
 
     lua_pushinteger(L, code);
     lua_pushstring(L, reason);
@@ -102,8 +102,8 @@ static void uwsc_onopen(struct uwsc_client *cli)
     cl->connected = true;
 
     lua_rawgeti(L, LUA_REGISTRYINDEX, cl->onopen_ref);
-	if (!lua_isfunction(L, -1))
-		return;
+    if (!lua_isfunction(L, -1))
+        return;
 
     lua_call(L, 0, 0);
 }
@@ -137,10 +137,10 @@ static int uwsc_lua_new(lua_State *L)
         return 2;
     }
 
-	memset(cl, 0, sizeof(struct uwsc_client_lua));
+    memset(cl, 0, sizeof(struct uwsc_client_lua));
 
-	luaL_getmetatable(L, UWSC_MT);
-	lua_setmetatable(L, -2);
+    luaL_getmetatable(L, UWSC_MT);
+    lua_setmetatable(L, -2);
 
     if (uwsc_init(&cl->cli, loop, url, ping_interval, extra_header) < 0) {
         lua_pushnil(L);
@@ -154,7 +154,7 @@ static int uwsc_lua_new(lua_State *L)
     cl->cli.onerror = uwsc_onerror;
     cl->cli.onclose = uwsc_onclose;
 
-	return 1;
+    return 1;
 }
 
 static int uwsc_lua_on(lua_State *L)
@@ -211,7 +211,7 @@ static int uwsc_lua_send_binary(lua_State *L)
 
 static int uwsc_lua_gc(lua_State *L)
 {
-	struct uwsc_client_lua *cl = luaL_checkudata(L, 1, UWSC_MT);
+    struct uwsc_client_lua *cl = luaL_checkudata(L, 1, UWSC_MT);
 
     if (cl->connected) {
         cl->cli.send_close(&cl->cli, UWSC_CLOSE_STATUS_NORMAL, "");
@@ -228,7 +228,7 @@ static const luaL_Reg uwsc_meta[] = {
     {"send_text", uwsc_lua_send_text},
     {"send_binary", uwsc_lua_send_binary},
     {"__gc", uwsc_lua_gc},
-	{NULL, NULL}
+    {NULL, NULL}
 };
 
 static const luaL_Reg uwsc_fun[] = {
